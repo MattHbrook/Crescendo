@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"godab/api"
 	"godab/config"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -615,6 +616,101 @@ func scanFlacFiles(rootPath string) ([]FlacFile, error) {
 	return flacFiles, err
 }
 
+// validateFilePath checks for path traversal attempts and other security issues
+func validateFilePath(path string) error {
+	// Check for path traversal attempts
+	if strings.Contains(path, "..") {
+		return fmt.Errorf("path traversal not allowed")
+	}
+
+	// Check for absolute paths
+	if strings.HasPrefix(path, "/") {
+		return fmt.Errorf("absolute paths not allowed")
+	}
+
+	// Check for empty path
+	if strings.TrimSpace(path) == "" {
+		return fmt.Errorf("empty path not allowed")
+	}
+
+	return nil
+}
+
+// handleRangeRequest handles HTTP range requests for efficient seeking
+func handleRangeRequest(c *gin.Context, file *os.File, fileSize int64, rangeHeader string) {
+	// Parse range header (e.g., "bytes=0-1023" or "bytes=1024-")
+	if !strings.HasPrefix(rangeHeader, "bytes=") {
+		c.Status(http.StatusRequestedRangeNotSatisfiable)
+		return
+	}
+
+	rangeSpec := strings.TrimPrefix(rangeHeader, "bytes=")
+	ranges := strings.Split(rangeSpec, "-")
+
+	if len(ranges) != 2 {
+		c.Status(http.StatusRequestedRangeNotSatisfiable)
+		return
+	}
+
+	var start, end int64
+	var err error
+
+	// Parse start position
+	if ranges[0] != "" {
+		start, err = strconv.ParseInt(ranges[0], 10, 64)
+		if err != nil || start < 0 {
+			c.Status(http.StatusRequestedRangeNotSatisfiable)
+			return
+		}
+	}
+
+	// Parse end position
+	if ranges[1] != "" {
+		end, err = strconv.ParseInt(ranges[1], 10, 64)
+		if err != nil || end < start {
+			c.Status(http.StatusRequestedRangeNotSatisfiable)
+			return
+		}
+	} else {
+		end = fileSize - 1
+	}
+
+	// Validate range bounds
+	if start >= fileSize {
+		c.Status(http.StatusRequestedRangeNotSatisfiable)
+		return
+	}
+	if end >= fileSize {
+		end = fileSize - 1
+	}
+
+	contentLength := end - start + 1
+
+	// Seek to start position
+	_, err = file.Seek(start, 0)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "failed to seek file",
+		})
+		return
+	}
+
+	// Set partial content headers
+	c.Header("Content-Type", "audio/flac")
+	c.Header("Content-Length", strconv.FormatInt(contentLength, 10))
+	c.Header("Content-Range", fmt.Sprintf("bytes %d-%d/%d", start, end, fileSize))
+	c.Header("Accept-Ranges", "bytes")
+	c.Header("Cache-Control", "public, max-age=3600")
+	c.Header("Access-Control-Allow-Origin", "*")
+	c.Status(http.StatusPartialContent)
+
+	// Copy only the requested range
+	_, err = io.CopyN(c.Writer, file, contentLength)
+	if err != nil {
+		log.Printf("Error streaming range %d-%d: %v", start, end, err)
+	}
+}
+
 // Global job queue instance
 var jobQueue *JobQueue
 
@@ -896,6 +992,118 @@ func startWebServer(port int) {
 				"total": len(flacFiles),
 				"scanned_directory": downloadLocation,
 			})
+		})
+
+		// File streaming endpoint
+		apiGroup.GET("/files/stream/*filepath", func(c *gin.Context) {
+			requestedPath := c.Param("filepath")
+
+			// Remove leading slash from filepath param
+			if strings.HasPrefix(requestedPath, "/") {
+				requestedPath = requestedPath[1:]
+			}
+
+			// Security: Validate file path
+			if err := validateFilePath(requestedPath); err != nil {
+				c.JSON(http.StatusForbidden, gin.H{
+					"error": "path security violation",
+					"details": err.Error(),
+				})
+				return
+			}
+
+			// Only allow FLAC files
+			if !strings.HasSuffix(strings.ToLower(requestedPath), ".flac") {
+				c.JSON(http.StatusForbidden, gin.H{
+					"error": "file extension not allowed",
+					"details": "only .flac files can be streamed",
+				})
+				return
+			}
+
+			downloadLocation := config.GetDownloadLocation()
+			fullPath := filepath.Join(downloadLocation, requestedPath)
+
+			// Security: Ensure resolved path is within download location
+			absDownloadPath, err := filepath.Abs(downloadLocation)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{
+					"error": "server configuration error",
+				})
+				return
+			}
+
+			absRequestPath, err := filepath.Abs(fullPath)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{
+					"error": "invalid file path",
+				})
+				return
+			}
+
+			if !strings.HasPrefix(absRequestPath, absDownloadPath) {
+				c.JSON(http.StatusForbidden, gin.H{
+					"error": "path traversal not allowed",
+				})
+				return
+			}
+
+			// Check if file exists and is readable
+			fileInfo, err := os.Stat(fullPath)
+			if err != nil {
+				if os.IsNotExist(err) {
+					c.JSON(http.StatusNotFound, gin.H{
+						"error": "file not found",
+						"path": requestedPath,
+					})
+					return
+				}
+				c.JSON(http.StatusInternalServerError, gin.H{
+					"error": "file access error",
+					"details": err.Error(),
+				})
+				return
+			}
+
+			// Ensure it's a file, not a directory
+			if fileInfo.IsDir() {
+				c.JSON(http.StatusBadRequest, gin.H{
+					"error": "path is a directory, not a file",
+				})
+				return
+			}
+
+			// Open the file
+			file, err := os.Open(fullPath)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{
+					"error": "failed to open file",
+					"details": err.Error(),
+				})
+				return
+			}
+			defer file.Close()
+
+			// Set appropriate headers for FLAC streaming
+			c.Header("Content-Type", "audio/flac")
+			c.Header("Content-Length", strconv.FormatInt(fileInfo.Size(), 10))
+			c.Header("Accept-Ranges", "bytes")
+			c.Header("Cache-Control", "public, max-age=3600")
+			c.Header("Access-Control-Allow-Origin", "*")
+
+			// Handle range requests for seeking
+			rangeHeader := c.GetHeader("Range")
+			if rangeHeader != "" {
+				handleRangeRequest(c, file, fileInfo.Size(), rangeHeader)
+				return
+			}
+
+			// Stream the entire file
+			c.Status(http.StatusOK)
+			_, err = io.Copy(c.Writer, file)
+			if err != nil {
+				log.Printf("Error streaming file %s: %v", requestedPath, err)
+			}
 		})
 	}
 
