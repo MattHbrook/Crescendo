@@ -1,4 +1,4 @@
-import type { SearchResult, Album, Artist, DownloadJob, FileItem, ConnectionStatus } from '@/types/api'
+import type { SearchResult, Album, Artist, DownloadJob, FileItem, ConnectionStatus, BackendSearchResponse, BackendTrack, BackendAlbum } from '@/types/api'
 
 const API_BASE_URL = 'http://localhost:8080'
 
@@ -53,11 +53,45 @@ class ApiService {
   }
 
   // Search
-  async search(query: string, type?: 'track' | 'album' | 'artist'): Promise<SearchResult[]> {
+  async search(query: string, type?: 'track' | 'album'): Promise<SearchResult[]> {
     const params = new URLSearchParams({ q: query })
     if (type) params.append('type', type)
 
-    return this.request<SearchResult[]>(`/api/search?${params}`)
+    const response = await this.request<BackendSearchResponse>(`/api/search?${params}`)
+
+    // Convert backend format to frontend format
+    const results: SearchResult[] = []
+
+    // Handle tracks
+    if (response.results.Tracks?.tracks) {
+      response.results.Tracks.tracks.forEach((track: BackendTrack) => {
+        results.push({
+          type: 'track',
+          id: track.id.toString(),
+          title: track.title,
+          artist: track.artist,
+          album: track.albumTitle,
+          cover: track.albumCover,
+          duration: track.duration
+        })
+      })
+    }
+
+    // Handle albums
+    if (response.results.Albums?.albums) {
+      response.results.Albums.albums.forEach((album: BackendAlbum) => {
+        results.push({
+          type: 'album',
+          id: album.id,
+          title: album.title,
+          artist: album.artist,
+          cover: album.cover,
+          duration: album.tracks?.reduce((total, track) => total + track.duration, 0)
+        })
+      })
+    }
+
+    return results
   }
 
   // Get album details

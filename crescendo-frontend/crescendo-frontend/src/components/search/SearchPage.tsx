@@ -1,108 +1,252 @@
-import { Search } from 'lucide-react'
+import { useState } from 'react'
+import { Search, Download, Music, User, Disc } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Badge } from '@/components/ui/badge'
+import { toast } from 'sonner'
+import { apiService } from '@/services/api'
+import type { SearchResult } from '@/types/api'
 
 export function SearchPage() {
+  const [query, setQuery] = useState('')
+  const [searchType, setSearchType] = useState<'track' | 'album'>('track')
+  const [results, setResults] = useState<SearchResult[]>([])
+  const [isLoading, setIsLoading] = useState(false)
+  const [hasSearched, setHasSearched] = useState(false)
+
+  const handleSearch = async () => {
+    if (!query.trim()) {
+      toast.error('Please enter a search term')
+      return
+    }
+
+    setIsLoading(true)
+    try {
+      const searchResults = await apiService.search(
+        query.trim(),
+        searchType
+      )
+      setResults(searchResults)
+      setHasSearched(true)
+
+      if (searchResults.length === 0) {
+        toast.info('No results found for your search')
+      } else {
+        toast.success(`Found ${searchResults.length} result${searchResults.length === 1 ? '' : 's'}`)
+      }
+    } catch (error) {
+      console.error('Search failed:', error)
+      toast.error('Search failed. Please check your connection and try again.')
+      setResults([])
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleDownload = async (result: SearchResult) => {
+    try {
+      let response: { jobId: string }
+
+      switch (result.type) {
+        case 'track':
+          response = await apiService.downloadTrack(result.id)
+          break
+        case 'album':
+          response = await apiService.downloadAlbum(result.id)
+          break
+        default:
+          throw new Error('Unknown result type')
+      }
+
+      toast.success(`Download started for "${result.title}" (Job ID: ${response.jobId})`)
+    } catch (error) {
+      console.error('Download failed:', error)
+      toast.error('Failed to start download. Please try again.')
+    }
+  }
+
+  const getTypeIcon = (type: string) => {
+    switch (type) {
+      case 'track':
+        return <Music className="h-4 w-4" />
+      case 'album':
+        return <Disc className="h-4 w-4" />
+      case 'artist':
+        return <User className="h-4 w-4" />
+      default:
+        return <Music className="h-4 w-4" />
+    }
+  }
+
+  const formatDuration = (seconds?: number) => {
+    if (!seconds) return ''
+    const minutes = Math.floor(seconds / 60)
+    const remainingSeconds = seconds % 60
+    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`
+  }
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleSearch()
+    }
+  }
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+    <div className="flex flex-col gap-6">
       <div>
-        <h1 style={{
-          fontSize: '24px',
-          fontWeight: 'bold',
-          margin: '0 0 8px 0',
-          color: '#f1f5f9'
-        }}>
-          Search Music
-        </h1>
-        <p style={{
-          color: '#94a3b8',
-          margin: '0',
-          fontSize: '14px'
-        }}>
-          Search for tracks, albums, and artists to download
+        <h1 className="text-2xl font-bold mb-2">Search Music</h1>
+        <p className="text-muted-foreground">
+          Search for any artist, song, or album to download
         </p>
       </div>
 
-      <div style={{
-        border: '1px solid #475569',
-        borderRadius: '8px',
-        backgroundColor: '#1e293b',
-        padding: '24px'
-      }}>
-        <h2 style={{
-          fontSize: '18px',
-          fontWeight: '600',
-          margin: '0 0 16px 0',
-          color: '#f1f5f9'
-        }}>
-          Find Music
-        </h2>
+      <Card>
+        <CardHeader>
+          <CardTitle>Find Music</CardTitle>
+          <CardDescription>
+            Search for any artist, song, or album. Choose whether to get individual tracks or full albums.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex gap-3">
+            <div className="flex-1">
+              <Input
+                placeholder="Search for any artist, song, or album..."
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyPress={handleKeyPress}
+                disabled={isLoading}
+              />
+            </div>
+            <Select value={searchType} onValueChange={(value: any) => setSearchType(value)}>
+              <SelectTrigger className="w-32">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="track">Individual Tracks</SelectItem>
+                <SelectItem value="album">Full Albums</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button onClick={handleSearch} disabled={isLoading || !query.trim()}>
+              <Search className="h-4 w-4 mr-2" />
+              {isLoading ? 'Searching...' : 'Search'}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
 
-        <div style={{
-          display: 'flex',
-          gap: '12px'
-        }}>
-          <input
-            type="text"
-            placeholder="Search for tracks, albums, or artists..."
-            style={{
-              flex: 1,
-              padding: '12px',
-              border: '1px solid #64748b',
-              borderRadius: '6px',
-              fontSize: '14px',
-              outline: 'none',
-              backgroundColor: '#334155',
-              color: '#f1f5f9'
-            }}
-            onFocus={(e) => {
-              e.currentTarget.style.borderColor = '#3b82f6'
-              e.currentTarget.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)'
-            }}
-            onBlur={(e) => {
-              e.currentTarget.style.borderColor = '#64748b'
-              e.currentTarget.style.boxShadow = 'none'
-            }}
-          />
-          <button style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            padding: '12px 24px',
-            backgroundColor: '#3b82f6',
-            color: '#ffffff',
-            border: 'none',
-            borderRadius: '6px',
-            fontSize: '14px',
-            fontWeight: '500',
-            cursor: 'pointer',
-            transition: 'background-color 0.2s'
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = '#2563eb'
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = '#3b82f6'
-          }}
-          >
-            <Search style={{ width: '16px', height: '16px' }} />
-            Search
-          </button>
+      {/* Loading State */}
+      {isLoading && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Card key={i}>
+              <CardHeader>
+                <div className="flex items-center space-x-2">
+                  <Skeleton className="h-4 w-4" />
+                  <Skeleton className="h-4 w-16" />
+                </div>
+                <Skeleton className="h-5 w-3/4" />
+                <Skeleton className="h-4 w-1/2" />
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-9 w-full" />
+              </CardContent>
+            </Card>
+          ))}
         </div>
-      </div>
+      )}
 
-      <div style={{
-        border: '1px solid #475569',
-        borderRadius: '8px',
-        backgroundColor: '#1e293b',
-        padding: '48px 24px',
-        textAlign: 'center' as const
-      }}>
-        <div style={{
-          color: '#94a3b8',
-          fontSize: '14px'
-        }}>
-          Enter a search term to find music
-        </div>
-      </div>
+      {/* Results */}
+      {!isLoading && hasSearched && (
+        <>
+          {results.length > 0 ? (
+            <>
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-semibold">
+                  Search Results ({results.length})
+                </h2>
+                <Badge variant="secondary">
+                  {searchType === 'track' ? 'Individual Tracks' : 'Full Albums'}
+                </Badge>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {results.map((result) => (
+                  <Card key={`${result.type}-${result.id}`} className="hover:shadow-md transition-shadow">
+                    <CardHeader className="pb-3">
+                      <div className="flex items-center space-x-2 mb-2">
+                        {getTypeIcon(result.type)}
+                        <Badge variant="outline" className="text-xs">
+                          {result.type}
+                        </Badge>
+                      </div>
+                      <CardTitle className="text-base line-clamp-2">
+                        {result.title}
+                      </CardTitle>
+                      <CardDescription className="space-y-1">
+                        {result.artist && (
+                          <div className="text-sm">
+                            <span className="font-medium">Artist:</span> {result.artist}
+                          </div>
+                        )}
+                        {result.album && result.type === 'track' && (
+                          <div className="text-sm">
+                            <span className="font-medium">Album:</span> {result.album}
+                          </div>
+                        )}
+                        {result.duration && (
+                          <div className="text-sm">
+                            <span className="font-medium">Duration:</span> {formatDuration(result.duration)}
+                          </div>
+                        )}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="pt-0">
+                      <Button
+                        onClick={() => handleDownload(result)}
+                        className="w-full"
+                        size="sm"
+                      >
+                        <Download className="h-4 w-4 mr-2" />
+                        Download {result.type}
+                      </Button>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </>
+          ) : (
+            <Card>
+              <CardContent className="text-center py-12">
+                <Search className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                <h3 className="text-lg font-semibold mb-2">No results found</h3>
+                <p className="text-muted-foreground mb-4">
+                  Try adjusting your search terms or search type
+                </p>
+                <Button variant="outline" onClick={() => setSearchType('track')}>
+                  Try Searching Tracks
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+        </>
+      )}
+
+      {/* Initial State */}
+      {!hasSearched && !isLoading && (
+        <Card>
+          <CardContent className="text-center py-12">
+            <Search className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+            <h3 className="text-lg font-semibold mb-2">Ready to search</h3>
+            <p className="text-muted-foreground">
+              Enter a search term above to find any artist, song, or album
+            </p>
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }

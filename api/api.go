@@ -163,7 +163,7 @@ func Search(query *string, queryType string) (*SearchResults, error) {
 		{Name: "type", Value: queryType},
 	})
 	if err != nil {
-		return nil, fmt.Errorf("search endpoint failed with status code: %d", res.StatusCode)
+		return nil, fmt.Errorf("search endpoint failed: %w", err)
 	}
 	defer res.Body.Close()
 

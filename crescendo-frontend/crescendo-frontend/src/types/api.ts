@@ -59,3 +59,36 @@ export interface ConnectionStatus {
   version?: string
   error?: string
 }
+
+// Backend API response types (what the server actually returns)
+export interface BackendTrack {
+  id: number
+  title: string
+  artist: string
+  albumTitle: string
+  albumCover?: string
+  releaseDate?: string
+  duration: number
+}
+
+export interface BackendAlbum {
+  id: string
+  title: string
+  artist: string
+  cover?: string
+  releaseDate?: string
+  tracks?: BackendTrack[]
+}
+
+export interface BackendSearchResponse {
+  query: string
+  results: {
+    Tracks?: {
+      tracks: BackendTrack[] | null
+    }
+    Albums?: {
+      albums: BackendAlbum[] | null
+    }
+  }
+  type: string
+}

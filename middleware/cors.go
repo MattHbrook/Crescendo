@@ -12,7 +12,7 @@ import (
 func CORS() gin.HandlerFunc {
 	corsOrigins := os.Getenv("CORS_ORIGINS")
 	if corsOrigins == "" {
-		corsOrigins = "http://localhost:3000" // Default for React dev
+		corsOrigins = "http://localhost:3000,http://localhost:5173,http://localhost:5174" // Default for React dev
 	}
 
 	config := cors.DefaultConfig()
