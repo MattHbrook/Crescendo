@@ -10,11 +10,13 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/dhowden/tag"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -200,11 +202,21 @@ type JobQueue struct {
 	workerCount int
 }
 
-// FlacFile represents a discovered FLAC file
-type FlacFile struct {
-	Filename string `json:"filename"`
-	Path     string `json:"path"`
-	Size     int64  `json:"size"`
+// AudioFile represents a discovered audio file (FLAC, MP3, etc.)
+type AudioFile struct {
+	Filename string        `json:"filename"`
+	Path     string        `json:"path"`
+	Size     int64         `json:"size"`
+	Format   string        `json:"format"`         // "flac", "mp3", etc.
+	Metadata *AudioMetadata `json:"metadata,omitempty"`
+}
+
+type AudioMetadata struct {
+	Title       string `json:"title,omitempty"`
+	Artist      string `json:"artist,omitempty"`
+	Album       string `json:"album,omitempty"`
+	Duration    string `json:"duration,omitempty"`
+	TrackNumber int    `json:"trackNumber,omitempty"`
 }
 
 // NewJobQueue creates a new job queue
@@ -584,36 +596,197 @@ func (jq *JobQueue) processArtistJob(job *DownloadJob) error {
 	return artist.Download()
 }
 
-// scanFlacFiles recursively scans a directory for FLAC files
-func scanFlacFiles(rootPath string) ([]FlacFile, error) {
-	var flacFiles []FlacFile
+// scanAudioFiles recursively scans a directory for audio files (FLAC priority, MP3 fallback)
+func scanAudioFiles(rootPath string) ([]AudioFile, error) {
+	var allFiles []AudioFile
 
+	// First pass: collect all audio files
 	err := filepath.Walk(rootPath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			log.Printf("Error accessing path %s: %v", path, err)
 			return nil // Continue walking, don't fail entire scan
 		}
 
-		// Check if it's a FLAC file
-		if !info.IsDir() && strings.ToLower(filepath.Ext(path)) == ".flac" {
+		// Check if it's an audio file (FLAC or MP3)
+		ext := strings.ToLower(filepath.Ext(path))
+		if !info.IsDir() && (ext == ".flac" || ext == ".mp3") {
 			// Get relative path from root
 			relativePath, err := filepath.Rel(rootPath, path)
 			if err != nil {
 				relativePath = path // fallback to absolute path
 			}
 
-			flacFile := FlacFile{
+			// Extract metadata from the audio file
+			metadata := extractAudioMetadata(path)
+
+			// Determine format
+			format := "flac"
+			if ext == ".mp3" {
+				format = "mp3"
+			}
+
+			audioFile := AudioFile{
 				Filename: info.Name(),
 				Path:     relativePath,
 				Size:     info.Size(),
+				Format:   format,
+				Metadata: metadata,
 			}
-			flacFiles = append(flacFiles, flacFile)
+			allFiles = append(allFiles, audioFile)
 		}
 
 		return nil
 	})
 
-	return flacFiles, err
+	if err != nil {
+		return nil, err
+	}
+
+	// Second pass: apply FLAC prioritization
+	return applyFlacPrioritization(allFiles), nil
+}
+
+// applyFlacPrioritization prioritizes FLAC files over MP3 files for the same track
+func applyFlacPrioritization(files []AudioFile) []AudioFile {
+	// Group files by their base name (without extension)
+	fileGroups := make(map[string][]AudioFile)
+
+	for _, file := range files {
+		// Create a key based on the file path without extension
+		basePath := strings.TrimSuffix(file.Path, filepath.Ext(file.Path))
+		fileGroups[basePath] = append(fileGroups[basePath], file)
+	}
+
+	var result []AudioFile
+
+	// For each group, prefer FLAC over MP3
+	for _, group := range fileGroups {
+		var selectedFile *AudioFile
+
+		// Look for FLAC first
+		for _, file := range group {
+			if file.Format == "flac" {
+				selectedFile = &file
+				break
+			}
+		}
+
+		// If no FLAC found, use MP3
+		if selectedFile == nil {
+			for _, file := range group {
+				if file.Format == "mp3" {
+					selectedFile = &file
+					break
+				}
+			}
+		}
+
+		// Add the selected file to result
+		if selectedFile != nil {
+			result = append(result, *selectedFile)
+		}
+	}
+
+	return result
+}
+
+// getContentType returns the appropriate MIME type for an audio file
+func getContentType(filePath string) string {
+	ext := strings.ToLower(filepath.Ext(filePath))
+	switch ext {
+	case ".flac":
+		return "audio/flac"
+	case ".mp3":
+		return "audio/mpeg"
+	default:
+		return "application/octet-stream"
+	}
+}
+
+// extractAudioMetadata extracts metadata from an audio file with fallback logic
+func extractAudioMetadata(filePath string) *AudioMetadata {
+	metadata := &AudioMetadata{}
+
+	// Try to open and parse the audio file
+	file, err := os.Open(filePath)
+	if err != nil {
+		log.Printf("Warning: Could not open audio file %s: %v", filePath, err)
+		// Use filename fallback
+		return extractMetadataFromPath(filePath)
+	}
+	defer file.Close()
+
+	// Extract metadata using dhowden/tag library (supports FLAC, MP3, etc.)
+	meta, err := tag.ReadFrom(file)
+	if err != nil {
+		log.Printf("Warning: Could not parse audio metadata from %s: %v", filePath, err)
+		// Use filename fallback
+		return extractMetadataFromPath(filePath)
+	}
+
+	// Extract basic metadata
+	metadata.Title = meta.Title()
+	metadata.Artist = meta.Artist()
+	metadata.Album = meta.Album()
+
+	// Extract track number
+	track, _ := meta.Track()
+	metadata.TrackNumber = track
+
+	// Note: Duration is not available through dhowden/tag library
+	// We could implement duration extraction using a different library if needed
+
+	// Use filename fallback for missing fields
+	if metadata.Title == "" || metadata.Artist == "" || metadata.Album == "" {
+		fallback := extractMetadataFromPath(filePath)
+		if metadata.Title == "" {
+			metadata.Title = fallback.Title
+		}
+		if metadata.Artist == "" {
+			metadata.Artist = fallback.Artist
+		}
+		if metadata.Album == "" {
+			metadata.Album = fallback.Album
+		}
+	}
+
+	return metadata
+}
+
+// extractMetadataFromPath extracts metadata from file path as fallback
+func extractMetadataFromPath(filePath string) *AudioMetadata {
+	metadata := &AudioMetadata{}
+
+	// Parse path components: Artist/Album/Track.flac or Track.mp3
+	parts := strings.Split(filepath.ToSlash(filePath), "/")
+	filename := filepath.Base(filePath)
+
+	// Extract artist from path (grandparent directory)
+	if len(parts) >= 3 {
+		metadata.Artist = parts[len(parts)-3]
+	}
+
+	// Extract album from path (parent directory)
+	if len(parts) >= 2 {
+		metadata.Album = parts[len(parts)-2]
+	}
+
+	// Extract title from filename, removing track number prefix and extension
+	title := strings.TrimSuffix(filename, filepath.Ext(filename))
+
+	// Remove common track number prefixes like "01 - ", "1. ", etc.
+	re := regexp.MustCompile(`^(\d+)[\.\-\s]+(.+)`)
+	if matches := re.FindStringSubmatch(title); len(matches) > 2 {
+		title = matches[2]
+		// Try to extract track number
+		if trackNum, err := strconv.Atoi(matches[1]); err == nil {
+			metadata.TrackNumber = trackNum
+		}
+	}
+
+	metadata.Title = title
+
+	return metadata
 }
 
 // validateFilePath checks for path traversal attempts and other security issues
@@ -637,7 +810,7 @@ func validateFilePath(path string) error {
 }
 
 // handleRangeRequest handles HTTP range requests for efficient seeking
-func handleRangeRequest(c *gin.Context, file *os.File, fileSize int64, rangeHeader string) {
+func handleRangeRequest(c *gin.Context, file *os.File, fileSize int64, rangeHeader string, filePath string) {
 	// Parse range header (e.g., "bytes=0-1023" or "bytes=1024-")
 	if !strings.HasPrefix(rangeHeader, "bytes=") {
 		c.Status(http.StatusRequestedRangeNotSatisfiable)
@@ -696,7 +869,7 @@ func handleRangeRequest(c *gin.Context, file *os.File, fileSize int64, rangeHead
 	}
 
 	// Set partial content headers
-	c.Header("Content-Type", "audio/flac")
+	c.Header("Content-Type", getContentType(filePath))
 	c.Header("Content-Length", strconv.FormatInt(contentLength, 10))
 	c.Header("Content-Range", fmt.Sprintf("bytes %d-%d/%d", start, end, fileSize))
 	c.Header("Accept-Ranges", "bytes")
@@ -975,10 +1148,10 @@ func startWebServer(port int) {
 		apiGroup.GET("/files", func(c *gin.Context) {
 			downloadLocation := config.GetDownloadLocation()
 
-			// Scan for FLAC files
-			flacFiles, err := scanFlacFiles(downloadLocation)
+			// Scan for audio files
+			audioFiles, err := scanAudioFiles(downloadLocation)
 			if err != nil {
-				log.Printf("Error scanning FLAC files: %v", err)
+				log.Printf("Error scanning audio files: %v", err)
 				c.JSON(http.StatusInternalServerError, gin.H{
 					"error": "failed to scan files",
 					"details": err.Error(),
@@ -988,9 +1161,8 @@ func startWebServer(port int) {
 
 			// Return the file list
 			c.JSON(http.StatusOK, gin.H{
-				"files": flacFiles,
-				"total": len(flacFiles),
-				"scanned_directory": downloadLocation,
+				"files": audioFiles,
+				"count": len(audioFiles),
 			})
 		})
 
@@ -1012,11 +1184,12 @@ func startWebServer(port int) {
 				return
 			}
 
-			// Only allow FLAC files
-			if !strings.HasSuffix(strings.ToLower(requestedPath), ".flac") {
+			// Only allow audio files (FLAC and MP3)
+			ext := strings.ToLower(filepath.Ext(requestedPath))
+			if ext != ".flac" && ext != ".mp3" {
 				c.JSON(http.StatusForbidden, gin.H{
 					"error": "file extension not allowed",
-					"details": "only .flac files can be streamed",
+					"details": "only .flac and .mp3 files can be streamed",
 				})
 				return
 			}
@@ -1084,8 +1257,8 @@ func startWebServer(port int) {
 			}
 			defer file.Close()
 
-			// Set appropriate headers for FLAC streaming
-			c.Header("Content-Type", "audio/flac")
+			// Set appropriate headers for audio streaming
+			c.Header("Content-Type", getContentType(requestedPath))
 			c.Header("Content-Length", strconv.FormatInt(fileInfo.Size(), 10))
 			c.Header("Accept-Ranges", "bytes")
 			c.Header("Cache-Control", "public, max-age=3600")
@@ -1094,7 +1267,7 @@ func startWebServer(port int) {
 			// Handle range requests for seeking
 			rangeHeader := c.GetHeader("Range")
 			if rangeHeader != "" {
-				handleRangeRequest(c, file, fileInfo.Size(), rangeHeader)
+				handleRangeRequest(c, file, fileInfo.Size(), rangeHeader, requestedPath)
 				return
 			}
 
