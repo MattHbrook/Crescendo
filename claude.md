@@ -231,3 +231,130 @@ Key tasks:
 
 ## Development Priority
 **PHASE 1 CLEANUP REQUIRED** before UI development. The modular architecture and security fixes are essential for maintainable frontend integration. UI development can begin safely after Phase 1 completion.
+
+## React Frontend Development (Phase 4)
+
+**Status:** Ready to begin (Backend transformation complete ✅)
+
+### Overview
+With the Crescendo backend fully functional, we now build the React frontend that will provide a modern web interface for music discovery and downloading. The backend runs on `localhost:8080` with complete REST API and WebSocket support.
+
+### Technology Stack
+- **React** with **TypeScript** for type safety
+- **shadcn/ui** for modern, accessible UI components
+- **Vite** for fast development and building
+- **Tailwind CSS** for styling (included with shadcn/ui)
+
+### Available Backend APIs
+The following endpoints are ready for frontend integration:
+- `GET /api/search?q=query&type=album|track|artist` - Search functionality
+- `POST /api/downloads/album/:id` - Queue album download
+- `POST /api/downloads/track/:id` - Queue track download
+- `POST /api/downloads/artist/:id` - Queue artist discography
+- `GET /api/downloads` - List active downloads
+- `GET /api/downloads/:jobId` - Get download status
+- `DELETE /api/downloads/:jobId` - Cancel download
+- `GET /api/files` - List downloaded files
+- `GET /api/files/:path/stream` - Serve downloaded files
+- `WebSocket /ws/downloads/:jobId` - Real-time progress updates
+
+### Development Approach: Thin Vertical Slices
+
+Each slice delivers working functionality and builds incrementally toward the complete application.
+
+#### **Slice 1: Foundation & Basic UI**
+**Goal:** Working React app with layout and backend connection
+
+**Tasks:**
+- Set up React + TypeScript project with Vite
+- Install and configure shadcn/ui component library
+- Create basic application layout (header, sidebar, main content area)
+- Add simple navigation structure
+- Test backend connectivity with health check endpoint
+- Configure CORS for development (backend already supports this)
+
+**Deliverable:** Clean, responsive layout that successfully connects to backend
+
+#### **Slice 2: Search & Discovery**
+**Goal:** Users can search and view results
+
+**Tasks:**
+- Build search interface with input field and type selector
+- Connect to `/api/search` endpoint with proper error handling
+- Display search results in organized cards/lists
+- Add loading states and error messages
+- Implement result filtering by type (track/album/artist)
+- Style results with shadcn/ui components
+
+**Deliverable:** Fully functional search that displays DAB Music catalog
+
+#### **Slice 3: Download Queue Management**
+**Goal:** Users can queue downloads and see active jobs
+
+**Tasks:**
+- Add "Download" buttons to search result items
+- Implement download queue interface using shadcn/ui components
+- Connect to `/api/downloads` POST endpoints for queuing
+- Display active downloads list with basic status
+- Add cancel download functionality via DELETE endpoint
+- Handle queue state management and updates
+
+**Deliverable:** Complete download queuing system with status tracking
+
+#### **Slice 4: Real-time Progress**
+**Goal:** Live progress updates during downloads
+
+**Tasks:**
+- Implement WebSocket connection to `/ws/downloads/:jobId`
+- Add progress bars showing download percentage
+- Display real-time status updates and current file being downloaded
+- Handle WebSocket connection lifecycle (connect, disconnect, reconnect)
+- Update UI dynamically as progress changes
+- Show completion notifications
+
+**Deliverable:** Real-time download progress with live updates
+
+#### **Slice 5: File Browser & Audio Player**
+**Goal:** Browse and play downloaded content
+
+**Tasks:**
+- Connect to `/api/files` endpoint to display downloaded content
+- Create file browser with folder navigation (Artist/Album structure)
+- Implement basic audio player for track previewing
+- Add file streaming via `/api/files/:path/stream` endpoint
+- Create breadcrumb navigation for folder hierarchy
+- Add file management features (delete, organize)
+
+**Deliverable:** Complete file browser with audio playback
+
+### Project Structure
+```
+crescendo-frontend/
+├── src/
+│   ├── components/          # Reusable UI components
+│   │   ├── ui/             # shadcn/ui components
+│   │   ├── layout/         # Layout components
+│   │   ├── search/         # Search-related components
+│   │   ├── downloads/      # Download queue components
+│   │   └── files/          # File browser components
+│   ├── services/           # API integration
+│   │   ├── api.ts          # REST API client
+│   │   └── websocket.ts    # WebSocket client
+│   ├── hooks/              # Custom React hooks
+│   ├── types/              # TypeScript type definitions
+│   └── utils/              # Helper functions
+├── public/                 # Static assets
+└── package.json           # Dependencies
+```
+
+### Success Criteria
+1. ✅ Modern, responsive UI using shadcn/ui components
+2. ✅ Complete search functionality with DAB Music integration
+3. ✅ Download queue management with real-time progress
+4. ✅ File browser with audio playback capabilities
+5. ✅ Proper error handling and loading states
+6. ✅ Type-safe TypeScript implementation
+7. ✅ Cross-browser compatibility and accessibility
+
+### Next Steps
+Begin with **Slice 1** to establish the foundation, then proceed through each slice to build the complete Crescendo music downloader frontend.
