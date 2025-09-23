@@ -8,7 +8,9 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -195,6 +197,13 @@ type JobQueue struct {
 	mu          sync.RWMutex
 	maxWorkers  int
 	workerCount int
+}
+
+// FlacFile represents a discovered FLAC file
+type FlacFile struct {
+	Filename string `json:"filename"`
+	Path     string `json:"path"`
+	Size     int64  `json:"size"`
 }
 
 // NewJobQueue creates a new job queue
@@ -574,6 +583,38 @@ func (jq *JobQueue) processArtistJob(job *DownloadJob) error {
 	return artist.Download()
 }
 
+// scanFlacFiles recursively scans a directory for FLAC files
+func scanFlacFiles(rootPath string) ([]FlacFile, error) {
+	var flacFiles []FlacFile
+
+	err := filepath.Walk(rootPath, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			log.Printf("Error accessing path %s: %v", path, err)
+			return nil // Continue walking, don't fail entire scan
+		}
+
+		// Check if it's a FLAC file
+		if !info.IsDir() && strings.ToLower(filepath.Ext(path)) == ".flac" {
+			// Get relative path from root
+			relativePath, err := filepath.Rel(rootPath, path)
+			if err != nil {
+				relativePath = path // fallback to absolute path
+			}
+
+			flacFile := FlacFile{
+				Filename: info.Name(),
+				Path:     relativePath,
+				Size:     info.Size(),
+			}
+			flacFiles = append(flacFiles, flacFile)
+		}
+
+		return nil
+	})
+
+	return flacFiles, err
+}
+
 // Global job queue instance
 var jobQueue *JobQueue
 
@@ -833,6 +874,29 @@ func startWebServer(port int) {
 			// WebSocket endpoint for all downloads progress
 			wsGroup.GET("/downloads", handleWebSocketAllConnection)
 		}
+
+		// File discovery endpoint
+		apiGroup.GET("/files", func(c *gin.Context) {
+			downloadLocation := config.GetDownloadLocation()
+
+			// Scan for FLAC files
+			flacFiles, err := scanFlacFiles(downloadLocation)
+			if err != nil {
+				log.Printf("Error scanning FLAC files: %v", err)
+				c.JSON(http.StatusInternalServerError, gin.H{
+					"error": "failed to scan files",
+					"details": err.Error(),
+				})
+				return
+			}
+
+			// Return the file list
+			c.JSON(http.StatusOK, gin.H{
+				"files": flacFiles,
+				"total": len(flacFiles),
+				"scanned_directory": downloadLocation,
+			})
+		})
 	}
 
 	portStr := strconv.Itoa(port)
