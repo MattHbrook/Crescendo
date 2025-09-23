@@ -15,6 +15,7 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/gorilla/websocket"
 )
 
 func main() {
@@ -121,6 +122,55 @@ const (
 	JobStatusCancelled  JobStatus = "cancelled"
 )
 
+// ProgressMessage represents a WebSocket progress update message
+type ProgressMessage struct {
+	JobID       string    `json:"jobId"`
+	Type        string    `json:"type"`        // "progress", "status", "complete", "error"
+	Progress    float64   `json:"progress"`    // 0-100 percentage
+	Status      string    `json:"status"`      // current job status
+	CurrentFile string    `json:"currentFile"` // name of file currently downloading
+	Speed       string    `json:"speed"`       // download speed like "2.1 MB/s"
+	Message     string    `json:"message,omitempty"` // status or error messages
+	Timestamp   time.Time `json:"timestamp"`   // when the update occurred
+}
+
+// WebSocket upgrader with CORS support
+var upgrader = websocket.Upgrader{
+	ReadBufferSize:  1024,
+	WriteBufferSize: 1024,
+	CheckOrigin: func(r *http.Request) bool {
+		// Allow connections from any origin for development
+		// In production, check against allowed origins
+		return true
+	},
+}
+
+// Client represents a WebSocket client connection
+type Client struct {
+	hub    *Hub
+	conn   *websocket.Conn
+	send   chan ProgressMessage
+	jobID  string
+}
+
+// Hub maintains the set of active clients and broadcasts messages to them
+type Hub struct {
+	// Registered clients mapped by job ID
+	clients map[string]map[*Client]bool
+
+	// Broadcast channel for sending messages to all clients of a job
+	broadcast chan ProgressMessage
+
+	// Register requests from clients
+	register chan *Client
+
+	// Unregister requests from clients
+	unregister chan *Client
+
+	// Mutex for thread-safe operations
+	mu sync.RWMutex
+}
+
 // DownloadJob represents a download job in the queue
 type DownloadJob struct {
 	ID          string    `json:"id"`
@@ -154,6 +204,155 @@ func NewJobQueue(maxWorkers int) *JobQueue {
 		queue:      make(chan *DownloadJob, 100), // Buffer for 100 jobs
 		activeJobs: make(map[string]*DownloadJob),
 		maxWorkers: maxWorkers,
+	}
+}
+
+// NewHub creates a new WebSocket hub
+func NewHub() *Hub {
+	return &Hub{
+		clients:    make(map[string]map[*Client]bool),
+		broadcast:  make(chan ProgressMessage),
+		register:   make(chan *Client),
+		unregister: make(chan *Client),
+	}
+}
+
+// Run starts the hub's main loop
+func (h *Hub) Run() {
+	for {
+		select {
+		case client := <-h.register:
+			h.mu.Lock()
+			if h.clients[client.jobID] == nil {
+				h.clients[client.jobID] = make(map[*Client]bool)
+			}
+			h.clients[client.jobID][client] = true
+			h.mu.Unlock()
+			log.Printf("WebSocket client connected for job %s", client.jobID)
+
+		case client := <-h.unregister:
+			h.mu.Lock()
+			if clients, ok := h.clients[client.jobID]; ok {
+				if _, ok := clients[client]; ok {
+					delete(clients, client)
+					close(client.send)
+					if len(clients) == 0 {
+						delete(h.clients, client.jobID)
+					}
+				}
+			}
+			h.mu.Unlock()
+			log.Printf("WebSocket client disconnected for job %s", client.jobID)
+
+		case message := <-h.broadcast:
+			h.mu.RLock()
+			// Send to specific job clients
+			if clients, ok := h.clients[message.JobID]; ok {
+				for client := range clients {
+					select {
+					case client.send <- message:
+					default:
+						close(client.send)
+						delete(clients, client)
+					}
+				}
+				if len(clients) == 0 {
+					delete(h.clients, message.JobID)
+				}
+			}
+
+			// Also send to "all" clients for any job update
+			if allClients, ok := h.clients["all"]; ok {
+				for client := range allClients {
+					select {
+					case client.send <- message:
+					default:
+						close(client.send)
+						delete(allClients, client)
+					}
+				}
+				if len(allClients) == 0 {
+					delete(h.clients, "all")
+				}
+			}
+			h.mu.RUnlock()
+		}
+	}
+}
+
+// BroadcastProgress sends a progress message to all clients of a specific job
+func (h *Hub) BroadcastProgress(jobID, msgType, status, currentFile, speed, message string, progress float64) {
+	progressMsg := ProgressMessage{
+		JobID:       jobID,
+		Type:        msgType,
+		Progress:    progress,
+		Status:      status,
+		CurrentFile: currentFile,
+		Speed:       speed,
+		Message:     message,
+		Timestamp:   time.Now(),
+	}
+
+	select {
+	case h.broadcast <- progressMsg:
+	default:
+		log.Printf("WebSocket broadcast channel full, dropping message for job %s", jobID)
+	}
+}
+
+// readPump handles reading from the WebSocket connection
+func (c *Client) readPump() {
+	defer func() {
+		c.hub.unregister <- c
+		c.conn.Close()
+	}()
+
+	c.conn.SetReadLimit(512)
+	c.conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+	c.conn.SetPongHandler(func(string) error {
+		c.conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+		return nil
+	})
+
+	for {
+		_, _, err := c.conn.ReadMessage()
+		if err != nil {
+			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+				log.Printf("WebSocket error: %v", err)
+			}
+			break
+		}
+	}
+}
+
+// writePump handles writing to the WebSocket connection
+func (c *Client) writePump() {
+	ticker := time.NewTicker(54 * time.Second)
+	defer func() {
+		ticker.Stop()
+		c.conn.Close()
+	}()
+
+	for {
+		select {
+		case message, ok := <-c.send:
+			c.conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+			if !ok {
+				c.conn.WriteMessage(websocket.CloseMessage, []byte{})
+				return
+			}
+
+			if err := c.conn.WriteJSON(message); err != nil {
+				log.Printf("WebSocket write error: %v", err)
+				return
+			}
+
+		case <-ticker.C:
+			c.conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+			if err := c.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+				return
+			}
+		}
 	}
 }
 
@@ -228,6 +427,18 @@ func (jq *JobQueue) UpdateJobProgress(id string, progress, total int) {
 	if job, exists := jq.jobs[id]; exists {
 		job.Progress = progress
 		job.Total = total
+
+		// Broadcast progress update via WebSocket
+		if hub != nil && total > 0 {
+			progressPercent := float64(progress) / float64(total) * 100
+			currentFile := ""
+			if progress < total {
+				currentFile = fmt.Sprintf("Track %d of %d", progress+1, total)
+			}
+
+			hub.BroadcastProgress(id, "progress", string(job.Status), currentFile, "",
+				fmt.Sprintf("Downloaded %d of %d tracks", progress, total), progressPercent)
+		}
 	}
 }
 
@@ -249,6 +460,26 @@ func (jq *JobQueue) SetJobStatus(id string, status JobStatus, errorMsg string) {
 		} else if status == JobStatusCompleted || status == JobStatusFailed || status == JobStatusCancelled {
 			job.CompletedAt = &now
 			delete(jq.activeJobs, id)
+		}
+
+		// Broadcast status update via WebSocket
+		if hub != nil {
+			msgType := "status"
+			message := string(status)
+			progress := float64(job.Progress) / float64(job.Total) * 100
+
+			if status == JobStatusCompleted {
+				msgType = "complete"
+				progress = 100.0
+				message = fmt.Sprintf("%s download completed", job.Title)
+			} else if status == JobStatusFailed {
+				msgType = "error"
+				message = errorMsg
+			} else if status == JobStatusProcessing {
+				message = fmt.Sprintf("Started downloading %s", job.Title)
+			}
+
+			hub.BroadcastProgress(id, msgType, string(status), "", "", message, progress)
 		}
 	}
 }
@@ -346,11 +577,80 @@ func (jq *JobQueue) processArtistJob(job *DownloadJob) error {
 // Global job queue instance
 var jobQueue *JobQueue
 
+// Global WebSocket hub instance
+var hub *Hub
+
+// handleWebSocketConnection handles WebSocket connections for specific job progress
+func handleWebSocketConnection(c *gin.Context) {
+	jobID := c.Param("jobId")
+	if jobID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "job ID is required"})
+		return
+	}
+
+	// Verify job exists
+	if _, exists := jobQueue.GetJob(jobID); !exists {
+		c.JSON(http.StatusNotFound, gin.H{"error": "job not found"})
+		return
+	}
+
+	// Upgrade HTTP connection to WebSocket
+	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
+	if err != nil {
+		log.Printf("WebSocket upgrade failed: %v", err)
+		return
+	}
+
+	// Create new client
+	client := &Client{
+		hub:   hub,
+		conn:  conn,
+		send:  make(chan ProgressMessage, 256),
+		jobID: jobID,
+	}
+
+	// Register client and start pumps
+	client.hub.register <- client
+
+	// Start goroutines for reading and writing
+	go client.writePump()
+	go client.readPump()
+}
+
+// handleWebSocketAllConnection handles WebSocket connections for all downloads
+func handleWebSocketAllConnection(c *gin.Context) {
+	// Upgrade HTTP connection to WebSocket
+	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
+	if err != nil {
+		log.Printf("WebSocket upgrade failed: %v", err)
+		return
+	}
+
+	// Create new client with special "all" job ID
+	client := &Client{
+		hub:   hub,
+		conn:  conn,
+		send:  make(chan ProgressMessage, 256),
+		jobID: "all",
+	}
+
+	// Register client and start pumps
+	client.hub.register <- client
+
+	// Start goroutines for reading and writing
+	go client.writePump()
+	go client.readPump()
+}
+
 // startWebServer initializes and starts the HTTP server
 func startWebServer(port int) {
 	// Initialize job queue with max 2 concurrent downloads
 	jobQueue = NewJobQueue(2)
 	jobQueue.Start()
+
+	// Initialize WebSocket hub
+	hub = NewHub()
+	go hub.Run()
 
 	// Set Gin to release mode for production
 	if os.Getenv("GIN_MODE") == "" {
@@ -522,6 +822,16 @@ func startWebServer(port int) {
 					"message": "job cancelled successfully",
 				})
 			})
+		}
+
+		// WebSocket endpoints for real-time progress
+		wsGroup := apiGroup.Group("/ws")
+		{
+			// WebSocket endpoint for specific job progress
+			wsGroup.GET("/downloads/:jobId", handleWebSocketConnection)
+
+			// WebSocket endpoint for all downloads progress
+			wsGroup.GET("/downloads", handleWebSocketAllConnection)
 		}
 	}
 
