@@ -1,4 +1,4 @@
-module godab
+module crescendo
 
 go 1.24.4
 

@@ -152,5 +152,82 @@ Add endpoints to serve and manage downloaded files.
 - **Preserve file structure** - maintain existing download organization
 - **Environment-based config** - same pattern as current implementation
 
+## Code Quality & Cleanup (CRITICAL BEFORE UI)
+
+**Current Status:** ⚠️ **Functional but requires cleanup before UI development**
+
+### Analysis Summary
+Comprehensive codebase analysis completed (see `docs/ANALYSIS.md`). While the web service transformation is functionally complete, critical architectural issues must be addressed before frontend development:
+
+**Critical Issues:**
+- 🔴 **main.go too large** (1,306 lines) - violates maintainability principles
+- 🔴 **Security warnings** - debug mode, proxy trust issues in production
+- 🔴 **Missing modular architecture** - all code in single file
+- 🟡 **Limited test coverage** - missing API integration tests
+- 🟡 **No static analysis** - quality checks needed
+
+### Cleanup Plan Overview
+
+**📋 PHASE 1: Architecture Refactoring (REQUIRED)**
+- **Priority:** CRITICAL for UI development
+- **Timeline:** 1 development session
+- **Goal:** Modular, maintainable, secure codebase
+
+Key tasks:
+- Split main.go into packages (`handlers/`, `services/`, `websocket/`, `middleware/`)
+- Fix security warnings (production mode, CORS configuration)
+- Standardize error handling and logging
+- See: `docs/PHASE_1_ARCHITECTURE.md`
+
+**📋 PHASE 2: Testing & Quality (RECOMMENDED)**
+- **Priority:** Production readiness
+- **Timeline:** 1 development session
+- **Goal:** Comprehensive testing and performance optimization
+
+Key tasks:
+- Add static analysis (golangci-lint)
+- Expand test coverage (API integration, security)
+- Performance optimization (connection pooling, rate limiting)
+- See: `docs/PHASE_2_TESTING.md`
+
+**📋 PHASE 3: Documentation & DX (NICE TO HAVE)**
+- **Priority:** Team collaboration and polish
+- **Timeline:** 0.5 development session
+- **Goal:** Professional documentation and developer experience
+
+Key tasks:
+- Update README (Godab → Crescendo)
+- Comprehensive API documentation
+- Docker support and deployment guides
+- See: `docs/PHASE_3_DOCUMENTATION.md`
+
+### Documentation Reference
+
+**📚 Available Documentation:**
+- `docs/ANALYSIS.md` - Complete codebase analysis with specific findings
+- `docs/CLEANUP_PLAN.md` - Detailed strategy and rationale
+- `docs/PHASE_1_ARCHITECTURE.md` - Step-by-step refactoring tasks
+- `docs/PHASE_2_TESTING.md` - Testing and quality improvements
+- `docs/PHASE_3_DOCUMENTATION.md` - Documentation and developer experience
+
+**🎯 Next Steps:**
+1. **MUST DO:** Complete Phase 1 before any UI development
+2. **SHOULD DO:** Complete Phase 2 for production readiness
+3. **NICE TO HAVE:** Complete Phase 3 for team collaboration
+
+### Why Cleanup is Critical for UI
+
+**Without cleanup:**
+- Adding UI complexity to 1,306-line main.go will make codebase unmaintainable
+- Security issues will affect web-facing application
+- Testing new features becomes difficult
+- Team collaboration suffers
+
+**After cleanup:**
+- ✅ Modular architecture enables parallel UI development
+- ✅ Clean API layer easy to integrate with frontend
+- ✅ Comprehensive testing provides confidence
+- ✅ Production-ready security and performance
+
 ## Development Priority
-Focus on creating a working web service that preserves all existing functionality while adding HTTP/WebSocket interfaces. The React frontend will be built separately once the backend API is stable.
+**PHASE 1 CLEANUP REQUIRED** before UI development. The modular architecture and security fixes are essential for maintainable frontend integration. UI development can begin safely after Phase 1 completion.

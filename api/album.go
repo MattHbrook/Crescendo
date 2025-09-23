@@ -3,7 +3,7 @@ package api
 import (
 	"encoding/json"
 	"fmt"
-	"godab/config"
+	"crescendo/config"
 	"math/rand"
 	"os"
 	"sync"
