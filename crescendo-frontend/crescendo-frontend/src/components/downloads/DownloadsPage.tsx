@@ -19,9 +19,10 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Progress } from '@/components/ui/progress'
-import { Download, X, RefreshCw, Music, Disc, User, Clock, CheckCircle, XCircle, Loader2, Trash2 } from 'lucide-react'
+import { Download, X, RefreshCw, Music, Disc, User, Clock, CheckCircle, XCircle, Loader2, Trash2, Wifi, WifiOff, AlertCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { apiService } from '@/services/api'
+import { useDownloadProgress } from '@/hooks/useDownloadProgress'
 import type { DownloadJob } from '@/types/api'
 
 export function DownloadsPage() {
@@ -33,6 +34,8 @@ export function DownloadsPage() {
     title: ''
   })
   const [isRefreshing, setIsRefreshing] = useState(false)
+
+  const { progressData, connectionStatus, connectToDownload, disconnectFromDownload, disconnectAll } = useDownloadProgress()
 
   const fetchDownloads = async (showRefreshToast = false) => {
     try {
@@ -53,16 +56,63 @@ export function DownloadsPage() {
 
   useEffect(() => {
     fetchDownloads()
+  }, [])
 
-    // Auto-refresh every 5 seconds for active downloads
-    const interval = setInterval(() => {
-      if (downloads.some(d => d.status === 'downloading' || d.status === 'queued')) {
-        fetchDownloads()
+  // Connect to WebSockets for active downloads
+  useEffect(() => {
+    const activeDownloads = downloads.filter(d => d.status === 'downloading' || d.status === 'queued')
+
+    // Connect to new active downloads
+    activeDownloads.forEach(download => {
+      if (!progressData[download.id]) {
+        connectToDownload(download.id)
       }
-    }, 5000)
+    })
 
-    return () => clearInterval(interval)
-  }, [downloads])
+    // Disconnect from completed/failed downloads
+    Object.keys(progressData).forEach(jobId => {
+      const isStillActive = activeDownloads.some(d => d.id === jobId)
+      if (!isStillActive) {
+        disconnectFromDownload(jobId)
+      }
+    })
+
+    // Cleanup all connections when component unmounts
+    return () => {
+      if (activeDownloads.length === 0) {
+        disconnectAll()
+      }
+    }
+  }, [downloads, progressData, connectToDownload, disconnectFromDownload, disconnectAll])
+
+  // Handle download completion notifications
+  useEffect(() => {
+    Object.entries(progressData).forEach(([jobId, progress]) => {
+      const download = downloads.find(d => d.id === jobId)
+      if (download && progress.status === 'completed' && progress.progress === 100) {
+        // Show completion toast notification
+        toast.success(`Download completed: "${download.title}"`, {
+          description: `${download.artist} - ${download.type}`,
+          duration: 5000,
+        })
+
+        // Disconnect from this download's WebSocket
+        disconnectFromDownload(jobId)
+
+        // Refresh downloads to get updated status
+        setTimeout(() => fetchDownloads(), 1000)
+      } else if (download && progress.status === 'failed') {
+        // Show error toast notification
+        toast.error(`Download failed: "${download.title}"`, {
+          description: progress.error || 'Unknown error occurred',
+          duration: 8000,
+        })
+
+        // Disconnect from this download's WebSocket
+        disconnectFromDownload(jobId)
+      }
+    })
+  }, [progressData, downloads, disconnectFromDownload, fetchDownloads])
 
   const handleCancelDownload = async (jobId: string) => {
     try {
@@ -80,6 +130,28 @@ export function DownloadsPage() {
     // For completed/failed downloads, remove from local state
     setDownloads(prev => prev.filter(d => d.id !== jobId))
     toast.success(`Removed "${title}" from queue`)
+  }
+
+  // Helper function to get real-time progress data for a download
+  const getProgressInfo = (download: DownloadJob) => {
+    const realTimeData = progressData[download.id]
+    if (realTimeData) {
+      return {
+        progress: realTimeData.progress,
+        currentFile: realTimeData.currentFile,
+        speed: realTimeData.speed,
+        eta: realTimeData.eta,
+        status: realTimeData.status
+      }
+    }
+    // Fallback to download data from API
+    return {
+      progress: download.progress,
+      currentFile: download.currentFile,
+      speed: undefined,
+      eta: undefined,
+      status: download.status
+    }
   }
 
   const getStatusBadge = (status: DownloadJob['status']) => {
@@ -146,14 +218,46 @@ export function DownloadsPage() {
             Manage your download queue and monitor progress
           </p>
         </div>
-        <Button
-          variant="outline"
-          onClick={() => fetchDownloads(true)}
-          disabled={isRefreshing}
-        >
-          <RefreshCw className={`w-4 h-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
-          Refresh
-        </Button>
+        <div className="flex items-center gap-4">
+          {/* Connection Status Indicator */}
+          <div className="flex items-center gap-2">
+            {connectionStatus === 'connected' && (
+              <>
+                <Wifi className="w-4 h-4 text-green-500" />
+                <span className="text-sm text-green-600">Live Updates</span>
+              </>
+            )}
+            {connectionStatus === 'connecting' && (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin text-yellow-500" />
+                <span className="text-sm text-yellow-600">Connecting...</span>
+              </>
+            )}
+            {connectionStatus === 'error' && (
+              <>
+                <AlertCircle className="w-4 h-4 text-red-500" />
+                <span className="text-sm text-red-600">Connection Error</span>
+              </>
+            )}
+            {connectionStatus === 'disconnected' && (
+              <>
+                <WifiOff className="w-4 h-4 text-gray-500" />
+                <span className="text-sm text-gray-600">
+                  {activeDownloads.length > 0 ? 'Disconnected' : 'No Active Downloads'}
+                </span>
+              </>
+            )}
+          </div>
+
+          <Button
+            variant="outline"
+            onClick={() => fetchDownloads(true)}
+            disabled={isRefreshing}
+          >
+            <RefreshCw className={`w-4 h-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+        </div>
       </div>
 
       {/* Active Downloads */}
@@ -185,47 +289,62 @@ export function DownloadsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {activeDownloads.map((download) => (
-                  <TableRow key={download.id}>
-                    <TableCell>
-                      {getTypeIcon(download.type)}
-                    </TableCell>
-                    <TableCell className="font-medium">{download.title}</TableCell>
-                    <TableCell>{download.artist}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="capitalize">
-                        {download.type}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{getStatusBadge(download.status)}</TableCell>
-                    <TableCell className="w-48">
-                      <div className="space-y-1">
-                        <Progress value={download.progress} className="w-full" />
-                        <div className="flex justify-between text-xs text-muted-foreground">
-                          <span>{download.progress}%</span>
-                          {download.currentFile && (
-                            <span className="truncate max-w-32" title={download.currentFile}>
-                              {download.currentFile}
-                            </span>
+                {activeDownloads.map((download) => {
+                  const progressInfo = getProgressInfo(download)
+                  return (
+                    <TableRow key={download.id}>
+                      <TableCell>
+                        {getTypeIcon(download.type)}
+                      </TableCell>
+                      <TableCell className="font-medium">{download.title}</TableCell>
+                      <TableCell>{download.artist}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="capitalize">
+                          {download.type}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>{getStatusBadge(download.status)}</TableCell>
+                      <TableCell className="w-64">
+                        <div className="space-y-1">
+                          <Progress value={progressInfo.progress} className="w-full" />
+                          <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
+                            <div className="flex justify-between">
+                              <span>{progressInfo.progress}%</span>
+                              {progressInfo.speed && (
+                                <span className="text-blue-600">{progressInfo.speed}</span>
+                              )}
+                            </div>
+                            <div className="flex justify-between">
+                              {progressInfo.eta && (
+                                <span className="text-orange-600">ETA: {progressInfo.eta}</span>
+                              )}
+                            </div>
+                          </div>
+                          {progressInfo.currentFile && (
+                            <div className="text-xs text-muted-foreground">
+                              <span className="truncate block max-w-60" title={progressInfo.currentFile}>
+                                📁 {progressInfo.currentFile}
+                              </span>
+                            </div>
                           )}
                         </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setCancelDialog({
-                          isOpen: true,
-                          jobId: download.id,
-                          title: download.title
-                        })}
-                      >
-                        <X className="w-3 h-3" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setCancelDialog({
+                            isOpen: true,
+                            jobId: download.id,
+                            title: download.title
+                          })}
+                        >
+                          <X className="w-3 h-3" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  )
+                })}
               </TableBody>
             </Table>
           )}

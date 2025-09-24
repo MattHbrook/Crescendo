@@ -358,3 +358,103 @@ crescendo-frontend/
 
 ### Next Steps
 Begin with **Slice 1** to establish the foundation, then proceed through each slice to build the complete Crescendo music downloader frontend.
+
+## ✅ SLICE 4 COMPLETED: Real-time WebSocket Progress
+
+### Current Implementation Status:
+- **✅ WebSocket Integration**: Implemented real-time progress tracking
+- **✅ Custom Hook**: `useDownloadProgress.ts` manages connections
+- **✅ Connection Status**: Visual indicators for WebSocket state
+- **✅ Progress Display**: Live progress bars with speed/ETA
+- **✅ Completion Notifications**: Toast notifications for success/failure
+- **⚠️ CONNECTION MANAGEMENT**: Needs improvement for production
+
+### 🔧 CONNECTION MANAGEMENT IMPROVEMENT PLAN
+
+#### Issue Identified:
+Current hardcoded ports and connection handling can cause:
+- Connection state confusion (showing disconnected when actually connected)
+- Port conflicts when multiple instances run
+- Poor error recovery when services restart
+- Hardcoded URLs that don't adapt to environment changes
+
+#### Proposed Solution:
+
+**1. Environment-Based Configuration**
+```typescript
+// Create src/config/environment.ts
+interface AppConfig {
+  API_BASE_URL: string
+  WS_BASE_URL: string
+  HEALTH_CHECK_INTERVAL: number
+  RECONNECT_ATTEMPTS: number
+}
+
+const config: AppConfig = {
+  API_BASE_URL: process.env.VITE_API_URL || 'http://localhost:8080',
+  WS_BASE_URL: process.env.VITE_WS_URL || 'ws://localhost:8080',
+  HEALTH_CHECK_INTERVAL: 30000,
+  RECONNECT_ATTEMPTS: 5
+}
+```
+
+**2. Service Discovery & Health Checking**
+```typescript
+// Add to api.ts
+async discoverBackend(): Promise<string> {
+  const ports = [8080, 8081, 8082]
+  for (const port of ports) {
+    try {
+      const response = await fetch(`http://localhost:${port}/health`)
+      if (response.ok) return `http://localhost:${port}`
+    } catch {}
+  }
+  throw new Error('No backend server found')
+}
+```
+
+**3. Improved WebSocket Connection Management**
+```typescript
+// Update websocket.ts
+async connectWithDiscovery(jobId: string, onProgress: ProgressCallback) {
+  const baseUrl = await this.discoverWebSocketEndpoint()
+  this.connect(jobId, onProgress, baseUrl)
+}
+```
+
+**4. Production Deployment Script**
+```bash
+#!/bin/bash
+# Kill existing processes
+pkill -f "crescendo --server" || true
+pkill -f "npm run dev" || true
+
+# Find available port for backend
+BACKEND_PORT=$(python3 -c "import socket; s=socket.socket(); s.bind(('', 0)); print(s.getsockname()[1]); s.close()")
+
+# Start services
+./crescendo --server --port $BACKEND_PORT &
+cd crescendo-frontend/crescendo-frontend
+VITE_API_URL="http://localhost:$BACKEND_PORT" npm run dev &
+```
+
+### 🎯 Next Steps for Connection Management:
+1. Implement environment-based configuration
+2. Add service discovery for flexible port handling
+3. Improve WebSocket connection state tracking
+4. Add proper health checking and error recovery
+5. Create deployment scripts for clean startup/shutdown
+
+### 🚀 Quick Start (Current Working State):
+```bash
+# Terminal 1: Start backend
+./crescendo --server --port 8080
+
+# Terminal 2: Start frontend
+cd crescendo-frontend/crescendo-frontend
+npm run dev
+
+# Visit: http://localhost:5173
+```
+
+**The WebSocket real-time progress is fully functional** but would benefit from the connection management improvements above for production robustness.

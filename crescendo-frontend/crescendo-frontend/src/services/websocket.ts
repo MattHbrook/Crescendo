@@ -1,71 +1,164 @@
 
+import config from '@/config/environment'
+import { apiService } from './api'
+
 export interface ProgressUpdate {
   percentage: number
   status: string
   currentFile?: string
   error?: string
+  speed?: string
+  eta?: string
 }
 
 export class WebSocketService {
-  private ws: WebSocket | null = null
-  private reconnectAttempts = 0
-  private maxReconnectAttempts = 5
-  private reconnectDelay = 1000
-  private baseUrl: string
+  private connections = new Map<string, WebSocket>()
+  private reconnectAttempts = new Map<string, number>()
+  private reconnectTimeouts = new Map<string, NodeJS.Timeout>()
+  private maxReconnectAttempts = config.RECONNECT_ATTEMPTS
+  private reconnectDelay = config.RECONNECT_DELAY
+  private baseUrl: string = ''
 
-  constructor(baseUrl: string = 'ws://localhost:8080') {
-    this.baseUrl = baseUrl
+  constructor() {
+    // Will be set dynamically based on discovered backend
   }
 
-  connect(jobId: string, onProgress: (update: ProgressUpdate) => void): void {
-    if (this.ws?.readyState === WebSocket.OPEN) {
-      this.ws.close()
+  async connect(jobId: string, onProgress: (update: ProgressUpdate) => void): Promise<void> {
+    // Close existing connection for this job
+    this.disconnect(jobId)
+
+    try {
+      // Get the backend URL from API service
+      const backendUrl = apiService.getBaseUrl()
+      if (!backendUrl) {
+        throw new Error('Backend URL not available')
+      }
+
+      this.baseUrl = backendUrl.replace('http', 'ws')
+      const wsUrl = `${this.baseUrl}/api/ws/downloads/${jobId}`
+
+      console.log(`🔌 Connecting WebSocket for job ${jobId} to ${wsUrl}`)
+
+      const ws = new WebSocket(wsUrl)
+      this.connections.set(jobId, ws)
+
+      ws.onopen = () => {
+        console.log(`✅ WebSocket connected for job ${jobId}`)
+        this.reconnectAttempts.set(jobId, 0)
+      }
+
+      ws.onmessage = (event) => {
+        try {
+          const update: ProgressUpdate = JSON.parse(event.data)
+          onProgress(update)
+        } catch (error) {
+          console.error('Failed to parse WebSocket message:', error)
+        }
+      }
+
+      ws.onclose = (event) => {
+        console.log(`🔌 WebSocket closed for job ${jobId}`, event.code, event.reason)
+        this.connections.delete(jobId)
+
+        // Attempt to reconnect if not a clean close
+        if (event.code !== 1000) {
+          this.scheduleReconnect(jobId, onProgress)
+        }
+      }
+
+      ws.onerror = (error) => {
+        console.error(`❌ WebSocket error for job ${jobId}:`, error)
+        this.scheduleReconnect(jobId, onProgress)
+      }
+
+    } catch (error) {
+      console.error(`Failed to connect WebSocket for job ${jobId}:`, error)
+      throw error
+    }
+  }
+
+  private scheduleReconnect(jobId: string, onProgress: (update: ProgressUpdate) => void): void {
+    const attempts = this.reconnectAttempts.get(jobId) || 0
+
+    if (attempts >= this.maxReconnectAttempts) {
+      console.log(`❌ Max reconnection attempts reached for job ${jobId}`)
+      return
     }
 
-    const wsUrl = `${this.baseUrl}/ws/downloads/${jobId}`
-    this.ws = new WebSocket(wsUrl)
+    const delay = this.reconnectDelay * Math.pow(2, attempts)
+    console.log(`🔄 Scheduling reconnect for job ${jobId} in ${delay}ms (attempt ${attempts + 1}/${this.maxReconnectAttempts})`)
 
-    this.ws.onopen = () => {
-      console.log(`WebSocket connected for job ${jobId}`)
-      this.reconnectAttempts = 0
-    }
-
-    this.ws.onmessage = (event) => {
+    const timeoutId = setTimeout(async () => {
+      this.reconnectTimeouts.delete(jobId)
+      this.reconnectAttempts.set(jobId, attempts + 1)
       try {
-        const update: ProgressUpdate = JSON.parse(event.data)
-        onProgress(update)
+        await this.connect(jobId, onProgress)
       } catch (error) {
-        console.error('Failed to parse WebSocket message:', error)
+        console.error(`Reconnection failed for job ${jobId}:`, error)
       }
-    }
+    }, delay)
 
-    this.ws.onclose = (event) => {
-      console.log(`WebSocket closed for job ${jobId}`, event.code, event.reason)
+    this.reconnectTimeouts.set(jobId, timeoutId)
+  }
 
-      // Attempt to reconnect if not a clean close
-      if (event.code !== 1000 && this.reconnectAttempts < this.maxReconnectAttempts) {
-        setTimeout(() => {
-          this.reconnectAttempts++
-          console.log(`Attempting to reconnect (${this.reconnectAttempts}/${this.maxReconnectAttempts})`)
-          this.connect(jobId, onProgress)
-        }, this.reconnectDelay * Math.pow(2, this.reconnectAttempts))
+  disconnect(jobId?: string): void {
+    if (jobId) {
+      // Disconnect specific job
+      const ws = this.connections.get(jobId)
+      if (ws) {
+        ws.close(1000, 'Client disconnect')
+        this.connections.delete(jobId)
       }
-    }
 
-    this.ws.onerror = (error) => {
-      console.error('WebSocket error:', error)
+      // Clear reconnection attempts and timeouts
+      this.reconnectAttempts.delete(jobId)
+      const timeoutId = this.reconnectTimeouts.get(jobId)
+      if (timeoutId) {
+        clearTimeout(timeoutId)
+        this.reconnectTimeouts.delete(jobId)
+      }
+
+      console.log(`🔌 Disconnected WebSocket for job ${jobId}`)
+    } else {
+      // Disconnect all connections
+      console.log('🔌 Disconnecting all WebSocket connections')
+
+      this.connections.forEach((ws, jobId) => {
+        ws.close(1000, 'Client disconnect')
+        console.log(`🔌 Disconnected WebSocket for job ${jobId}`)
+      })
+
+      this.connections.clear()
+      this.reconnectAttempts.clear()
+
+      // Clear all timeouts
+      this.reconnectTimeouts.forEach(timeoutId => clearTimeout(timeoutId))
+      this.reconnectTimeouts.clear()
     }
   }
 
-  disconnect(): void {
-    if (this.ws) {
-      this.ws.close(1000, 'Client disconnect')
-      this.ws = null
+  isConnected(jobId?: string): boolean {
+    if (jobId) {
+      const ws = this.connections.get(jobId)
+      return ws?.readyState === WebSocket.OPEN
     }
+    // Check if any connection is open
+    for (const ws of this.connections.values()) {
+      if (ws.readyState === WebSocket.OPEN) {
+        return true
+      }
+    }
+    return false
   }
 
-  isConnected(): boolean {
-    return this.ws?.readyState === WebSocket.OPEN
+  getActiveConnections(): string[] {
+    const active: string[] = []
+    this.connections.forEach((ws, jobId) => {
+      if (ws.readyState === WebSocket.OPEN) {
+        active.push(jobId)
+      }
+    })
+    return active
   }
 }
 

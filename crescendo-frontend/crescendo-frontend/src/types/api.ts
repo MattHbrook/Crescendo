@@ -89,6 +89,9 @@ export interface BackendSearchResponse {
     Albums?: {
       albums: BackendAlbum[] | null
     }
+    Artists?: {
+      artists: Array<{ id: number, name: string }> | null
+    }
   }
   type: string
 }
