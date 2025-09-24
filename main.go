@@ -986,7 +986,7 @@ func startWebServer(port int) {
 		c.JSON(http.StatusOK, gin.H{
 			"status":    "healthy",
 			"service":   "crescendo",
-			"version":   "1.0.0",
+			"version":   "0.2.0",
 			"timestamp": time.Now().Unix(),
 		})
 	})
