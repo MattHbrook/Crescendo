@@ -972,7 +972,7 @@ func startWebServer(port int) {
 	// CORS configuration
 	corsOrigin := os.Getenv("CORS_ORIGIN")
 	if corsOrigin == "" {
-		corsOrigin = "http://localhost:3000,http://localhost:5173,http://localhost:5174" // Default for React dev
+		corsOrigin = "http://localhost:3000,http://localhost:5173,http://localhost:5174,http://localhost:5175" // Default for React dev
 	}
 
 	corsConfig := cors.DefaultConfig()

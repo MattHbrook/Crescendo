@@ -12,7 +12,7 @@ import type { SearchResult } from '@/types/api'
 
 export function SearchPage() {
   const [query, setQuery] = useState('')
-  const [searchType, setSearchType] = useState<'track' | 'album'>('track')
+  const [searchType, setSearchType] = useState<'track' | 'album'>('album')
   const [results, setResults] = useState<SearchResult[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [hasSearched, setHasSearched] = useState(false)
@@ -118,64 +118,127 @@ export function SearchPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-2xl font-bold mb-2">Search Music</h1>
-        <p className="text-muted-foreground">
+        <h1 style={{
+          fontSize: '24px',
+          fontWeight: 'bold',
+          color: '#f1f5f9',
+          marginBottom: '8px'
+        }}>Search Music</h1>
+        <p style={{
+          color: '#94a3b8',
+          fontSize: '14px'
+        }}>
           Search for any artist, song, or album to download
         </p>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Find Music</CardTitle>
-          <CardDescription>
+      <div style={{
+        backgroundColor: '#1e293b',
+        border: '1px solid #475569',
+        borderRadius: '8px',
+        padding: '24px'
+      }}>
+        <div style={{ marginBottom: '16px' }}>
+          <h2 style={{
+            fontSize: '20px',
+            fontWeight: 'bold',
+            color: '#f1f5f9',
+            marginBottom: '8px'
+          }}>Find Music</h2>
+          <p style={{
+            fontSize: '14px',
+            color: '#94a3b8'
+          }}>
             Search for any artist, song, or album. Choose whether to get individual tracks or full albums.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex gap-3">
-            <div className="flex-1">
-              <Input
-                placeholder="Search for any artist, song, or album..."
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                onKeyPress={handleKeyPress}
-                disabled={isLoading}
-              />
-            </div>
-            <Select value={searchType} onValueChange={(value: any) => setSearchType(value)}>
-              <SelectTrigger className="w-32">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="track">Individual Tracks</SelectItem>
-                <SelectItem value="album">Full Albums</SelectItem>
-              </SelectContent>
-            </Select>
-            <Button onClick={handleSearch} disabled={isLoading || !query.trim()}>
-              <Search className="h-4 w-4 mr-2" />
-              {isLoading ? 'Searching...' : 'Search'}
-            </Button>
+          </p>
+        </div>
+        <div style={{ display: 'flex', gap: '12px' }}>
+          <div style={{ flex: 1 }}>
+            <input
+              type="text"
+              placeholder="Search for any artist, song, or album..."
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyPress={handleKeyPress}
+              disabled={isLoading}
+              style={{
+                width: '100%',
+                padding: '12px 16px',
+                backgroundColor: '#0f172a',
+                border: '1px solid #475569',
+                borderRadius: '6px',
+                color: '#f1f5f9',
+                fontSize: '14px',
+                outline: 'none'
+              }}
+              onFocus={(e) => {
+                e.target.style.borderColor = '#3b82f6'
+              }}
+              onBlur={(e) => {
+                e.target.style.borderColor = '#475569'
+              }}
+            />
           </div>
-        </CardContent>
-      </Card>
+          <select
+            value={searchType}
+            onChange={(e) => setSearchType(e.target.value as 'track' | 'album')}
+            style={{
+              padding: '12px 16px',
+              backgroundColor: '#0f172a',
+              border: '1px solid #475569',
+              borderRadius: '6px',
+              color: '#f1f5f9',
+              fontSize: '14px',
+              outline: 'none',
+              minWidth: '140px'
+            }}
+          >
+            <option value="album">Full Albums</option>
+            <option value="track">Individual Tracks</option>
+          </select>
+          <button
+            onClick={handleSearch}
+            disabled={isLoading || !query.trim()}
+            style={{
+              padding: '12px 24px',
+              backgroundColor: isLoading || !query.trim() ? '#475569' : '#3b82f6',
+              border: 'none',
+              borderRadius: '6px',
+              color: '#ffffff',
+              fontSize: '14px',
+              fontWeight: '500',
+              cursor: isLoading || !query.trim() ? 'not-allowed' : 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}
+          >
+            <Search className="h-4 w-4" />
+            {isLoading ? 'Searching...' : 'Search'}
+          </button>
+        </div>
+      </div>
 
       {/* Loading State */}
       {isLoading && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '16px' }}>
           {Array.from({ length: 6 }).map((_, i) => (
-            <Card key={i}>
-              <CardHeader>
-                <div className="flex items-center space-x-2">
-                  <Skeleton className="h-4 w-4" />
-                  <Skeleton className="h-4 w-16" />
+            <div key={i} style={{
+              backgroundColor: '#1e293b',
+              border: '1px solid #475569',
+              borderRadius: '8px',
+              padding: '20px'
+            }}>
+              <div style={{ marginBottom: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                  <div style={{ width: '16px', height: '16px', backgroundColor: '#475569', borderRadius: '4px' }}></div>
+                  <div style={{ width: '60px', height: '16px', backgroundColor: '#475569', borderRadius: '4px' }}></div>
                 </div>
-                <Skeleton className="h-5 w-3/4" />
-                <Skeleton className="h-4 w-1/2" />
-              </CardHeader>
-              <CardContent>
-                <Skeleton className="h-9 w-full" />
-              </CardContent>
-            </Card>
+                <div style={{ width: '80%', height: '20px', backgroundColor: '#475569', borderRadius: '4px', marginBottom: '8px' }}></div>
+                <div style={{ width: '60%', height: '16px', backgroundColor: '#475569', borderRadius: '4px' }}></div>
+              </div>
+              <div style={{ width: '100%', height: '40px', backgroundColor: '#475569', borderRadius: '6px' }}></div>
+            </div>
           ))}
         </div>
       )}
@@ -185,98 +248,214 @@ export function SearchPage() {
         <>
           {results.length > 0 ? (
             <>
-              <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold">
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+                <h2 style={{
+                  fontSize: '18px',
+                  fontWeight: '600',
+                  color: '#f1f5f9'
+                }}>
                   Search Results ({results.length})
                 </h2>
-                <Badge variant="secondary">
+                <span style={{
+                  padding: '4px 12px',
+                  backgroundColor: '#334155',
+                  border: '1px solid #475569',
+                  borderRadius: '6px',
+                  fontSize: '12px',
+                  color: '#e2e8f0',
+                  fontWeight: '500'
+                }}>
                   {searchType === 'track' ? 'Individual Tracks' : 'Full Albums'}
-                </Badge>
+                </span>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '16px' }}>
                 {results.map((result) => (
-                  <Card key={`${result.type}-${result.id}`} className="hover:shadow-md transition-shadow">
-                    <CardHeader className="pb-3">
-                      <div className="flex items-center space-x-2 mb-2">
-                        {getTypeIcon(result.type)}
-                        <Badge variant="outline" className="text-xs">
+                  <div key={`${result.type}-${result.id}`} style={{
+                    backgroundColor: '#1e293b',
+                    border: '1px solid #475569',
+                    borderRadius: '8px',
+                    padding: '20px',
+                    transition: 'all 0.2s'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = '#334155'
+                    e.currentTarget.style.borderColor = '#64748b'
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = '#1e293b'
+                    e.currentTarget.style.borderColor = '#475569'
+                  }}>
+                    <div style={{ marginBottom: '12px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                        {result.cover ? (
+                          <img
+                            src={result.cover}
+                            alt={`${result.title} cover`}
+                            style={{
+                              width: '40px',
+                              height: '40px',
+                              borderRadius: '4px',
+                              objectFit: 'cover',
+                              backgroundColor: '#475569'
+                            }}
+                            onError={(e) => {
+                              // Fallback to icon if image fails to load
+                              e.currentTarget.style.display = 'none';
+                              e.currentTarget.nextElementSibling!.style.display = 'inline';
+                            }}
+                          />
+                        ) : null}
+                        <span style={{
+                          color: '#94a3b8',
+                          display: result.cover ? 'none' : 'inline'
+                        }}>{getTypeIcon(result.type)}</span>
+                        <span style={{
+                          padding: '2px 8px',
+                          backgroundColor: '#0f172a',
+                          border: '1px solid #475569',
+                          borderRadius: '4px',
+                          fontSize: '12px',
+                          color: '#94a3b8',
+                          fontWeight: '500'
+                        }}>
                           {result.type}
-                        </Badge>
+                        </span>
                       </div>
-                      <CardTitle className="text-base line-clamp-2">
+                      <h3 style={{
+                        fontSize: '16px',
+                        fontWeight: '600',
+                        color: '#f1f5f9',
+                        marginBottom: '8px',
+                        lineHeight: '1.4'
+                      }}>
                         {result.title}
-                      </CardTitle>
-                      <CardDescription className="space-y-1">
+                      </h3>
+                      <div style={{ color: '#94a3b8', fontSize: '14px' }}>
                         {result.artist && (
-                          <div className="text-sm">
-                            <span className="font-medium">Artist:</span> {result.artist}
+                          <div style={{ marginBottom: '4px' }}>
+                            <span style={{ fontWeight: '500', color: '#e2e8f0' }}>Artist:</span> {result.artist}
                           </div>
                         )}
                         {result.album && result.type === 'track' && (
-                          <div className="text-sm">
-                            <span className="font-medium">Album:</span> {result.album}
+                          <div style={{ marginBottom: '4px' }}>
+                            <span style={{ fontWeight: '500', color: '#e2e8f0' }}>Album:</span> {result.album}
                           </div>
                         )}
                         {result.duration && (
-                          <div className="text-sm">
-                            <span className="font-medium">Duration:</span> {formatDuration(result.duration)}
+                          <div>
+                            <span style={{ fontWeight: '500', color: '#e2e8f0' }}>Duration:</span> {formatDuration(result.duration)}
                           </div>
                         )}
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="pt-0">
-                      <Button
-                        onClick={() => handleDownload(result)}
-                        className="w-full"
-                        size="sm"
-                        disabled={downloadingIds.has(result.id)}
-                      >
-                        {downloadingIds.has(result.id) ? (
-                          <>
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                            Starting Download...
-                          </>
-                        ) : (
-                          <>
-                            <Download className="h-4 w-4 mr-2" />
-                            Download {result.type}
-                          </>
-                        )}
-                      </Button>
-                    </CardContent>
-                  </Card>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => handleDownload(result)}
+                      disabled={downloadingIds.has(result.id)}
+                      style={{
+                        width: '100%',
+                        padding: '12px 16px',
+                        backgroundColor: downloadingIds.has(result.id) ? '#475569' : '#3b82f6',
+                        border: 'none',
+                        borderRadius: '6px',
+                        color: '#ffffff',
+                        fontSize: '14px',
+                        fontWeight: '500',
+                        cursor: downloadingIds.has(result.id) ? 'not-allowed' : 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '8px'
+                      }}
+                    >
+                      {downloadingIds.has(result.id) ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Starting Download...
+                        </>
+                      ) : (
+                        <>
+                          <Download className="h-4 w-4" />
+                          Download {result.type}
+                        </>
+                      )}
+                    </button>
+                  </div>
                 ))}
               </div>
             </>
           ) : (
-            <Card>
-              <CardContent className="text-center py-12">
-                <Search className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                <h3 className="text-lg font-semibold mb-2">No results found</h3>
-                <p className="text-muted-foreground mb-4">
-                  Try adjusting your search terms or search type
-                </p>
-                <Button variant="outline" onClick={() => setSearchType('track')}>
-                  Try Searching Tracks
-                </Button>
-              </CardContent>
-            </Card>
+            <div style={{
+              backgroundColor: '#1e293b',
+              border: '1px solid #475569',
+              borderRadius: '8px',
+              padding: '48px 24px',
+              textAlign: 'center'
+            }}>
+              <Search className="h-12 w-12 mx-auto mb-4" style={{ color: '#94a3b8' }} />
+              <h3 style={{
+                fontSize: '18px',
+                fontWeight: '600',
+                color: '#f1f5f9',
+                marginBottom: '8px'
+              }}>No results found</h3>
+              <p style={{
+                fontSize: '14px',
+                color: '#94a3b8',
+                marginBottom: '16px'
+              }}>
+                Try adjusting your search terms or search type
+              </p>
+              <button
+                onClick={() => setSearchType('track')}
+                style={{
+                  padding: '8px 16px',
+                  backgroundColor: 'transparent',
+                  border: '1px solid #475569',
+                  borderRadius: '6px',
+                  color: '#94a3b8',
+                  fontSize: '14px',
+                  cursor: 'pointer'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = '#475569'
+                  e.currentTarget.style.color = '#e2e8f0'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = 'transparent'
+                  e.currentTarget.style.color = '#94a3b8'
+                }}
+              >
+                Try Searching Individual Tracks
+              </button>
+            </div>
           )}
         </>
       )}
 
       {/* Initial State */}
       {!hasSearched && !isLoading && (
-        <Card>
-          <CardContent className="text-center py-12">
-            <Search className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">Ready to search</h3>
-            <p className="text-muted-foreground">
-              Enter a search term above to find any artist, song, or album
-            </p>
-          </CardContent>
-        </Card>
+        <div style={{
+          backgroundColor: '#1e293b',
+          border: '1px solid #475569',
+          borderRadius: '8px',
+          padding: '48px 24px',
+          textAlign: 'center'
+        }}>
+          <Search className="h-12 w-12 mx-auto mb-4" style={{ color: '#94a3b8' }} />
+          <h3 style={{
+            fontSize: '18px',
+            fontWeight: '600',
+            color: '#f1f5f9',
+            marginBottom: '8px'
+          }}>Ready to search</h3>
+          <p style={{
+            fontSize: '14px',
+            color: '#94a3b8'
+          }}>
+            Enter a search term above to find any artist, song, or album
+          </p>
+        </div>
       )}
     </div>
   )
