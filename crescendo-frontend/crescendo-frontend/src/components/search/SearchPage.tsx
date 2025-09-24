@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Search, Download, Music, User, Disc } from 'lucide-react'
+import { Search, Download, Music, User, Disc, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -46,7 +46,16 @@ export function SearchPage() {
     }
   }
 
+  const [downloadingIds, setDownloadingIds] = useState<Set<string>>(new Set())
+
   const handleDownload = async (result: SearchResult) => {
+    if (downloadingIds.has(result.id)) {
+      toast.info('Download already in progress for this item')
+      return
+    }
+
+    setDownloadingIds(prev => new Set(prev).add(result.id))
+
     try {
       let response: { jobId: string }
 
@@ -61,10 +70,22 @@ export function SearchPage() {
           throw new Error('Unknown result type')
       }
 
-      toast.success(`Download started for "${result.title}" (Job ID: ${response.jobId})`)
+      toast.success(`Download started for "${result.title}"`, {
+        description: `Job ID: ${response.jobId} - View progress in Downloads tab`,
+        duration: 4000
+      })
     } catch (error) {
       console.error('Download failed:', error)
       toast.error('Failed to start download. Please try again.')
+    } finally {
+      // Remove from downloading state after a short delay to prevent rapid re-clicking
+      setTimeout(() => {
+        setDownloadingIds(prev => {
+          const newSet = new Set(prev)
+          newSet.delete(result.id)
+          return newSet
+        })
+      }, 2000)
     }
   }
 
@@ -209,9 +230,19 @@ export function SearchPage() {
                         onClick={() => handleDownload(result)}
                         className="w-full"
                         size="sm"
+                        disabled={downloadingIds.has(result.id)}
                       >
-                        <Download className="h-4 w-4 mr-2" />
-                        Download {result.type}
+                        {downloadingIds.has(result.id) ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Starting Download...
+                          </>
+                        ) : (
+                          <>
+                            <Download className="h-4 w-4 mr-2" />
+                            Download {result.type}
+                          </>
+                        )}
                       </Button>
                     </CardContent>
                   </Card>

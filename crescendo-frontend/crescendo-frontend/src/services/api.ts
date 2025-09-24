@@ -1,6 +1,6 @@
 import type { SearchResult, Album, Artist, DownloadJob, FileItem, ConnectionStatus, BackendSearchResponse, BackendTrack, BackendAlbum } from '@/types/api'
 
-const API_BASE_URL = 'http://localhost:8080'
+const API_BASE_URL = 'http://localhost:8081'
 
 class ApiService {
   private baseUrl: string
