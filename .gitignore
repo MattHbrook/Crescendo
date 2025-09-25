@@ -1,2 +1,23 @@
 .DS_Store
 node_modules
+
+# Downloaded music files
+*.flac
+*.mp3
+*.m4a
+*.wav
+Coldplay/
+Media/
+downloads/
+Active Downloads/
+
+# Build artifacts
+crescendo
+
+# IDE files
+.vscode/
+.idea/
+
+# OS files
+Thumbs.db
+*.log
