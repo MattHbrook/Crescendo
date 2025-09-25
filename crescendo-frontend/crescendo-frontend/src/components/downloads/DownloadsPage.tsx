@@ -69,6 +69,18 @@ export function DownloadsPage() {
       }
     })
 
+    // Cleanup all connections when component unmounts
+    return () => {
+      if (activeDownloads.length === 0) {
+        disconnectAll()
+      }
+    }
+  }, [downloads, connectToDownload, disconnectAll])
+
+  // Separate effect to handle disconnecting from completed downloads
+  useEffect(() => {
+    const activeDownloads = downloads.filter(d => d.status === 'downloading' || d.status === 'queued')
+
     // Disconnect from completed/failed downloads
     Object.keys(progressData).forEach(jobId => {
       const isStillActive = activeDownloads.some(d => d.id === jobId)
@@ -76,14 +88,7 @@ export function DownloadsPage() {
         disconnectFromDownload(jobId)
       }
     })
-
-    // Cleanup all connections when component unmounts
-    return () => {
-      if (activeDownloads.length === 0) {
-        disconnectAll()
-      }
-    }
-  }, [downloads, progressData, connectToDownload, disconnectFromDownload, disconnectAll])
+  }, [downloads, progressData, disconnectFromDownload])
 
   // Handle download completion notifications
   useEffect(() => {

@@ -35,6 +35,7 @@ func StartWebServer(port int) {
 	fileHandler := handlers.NewFileHandler(fileService)
 	searchHandler := handlers.NewSearchHandler()
 	healthHandler := handlers.NewHealthHandler()
+	settingsHandler := handlers.NewSettingsHandler()
 
 	// Setup router
 	r := gin.Default()
@@ -45,7 +46,7 @@ func StartWebServer(port int) {
 	r.Use(middleware.Security())
 
 	// Setup routes
-	setupRoutes(r, downloadHandler, fileHandler, searchHandler, healthHandler)
+	setupRoutes(r, downloadHandler, fileHandler, searchHandler, healthHandler, settingsHandler)
 
 	// Start server
 	portStr := strconv.Itoa(port)
@@ -60,7 +61,7 @@ func StartWebServer(port int) {
 }
 
 // setupRoutes configures all the HTTP routes
-func setupRoutes(r *gin.Engine, downloadHandler *handlers.DownloadHandler, fileHandler *handlers.FileHandler, searchHandler *handlers.SearchHandler, healthHandler *handlers.HealthHandler) {
+func setupRoutes(r *gin.Engine, downloadHandler *handlers.DownloadHandler, fileHandler *handlers.FileHandler, searchHandler *handlers.SearchHandler, healthHandler *handlers.HealthHandler, settingsHandler *handlers.SettingsHandler) {
 	// Health check endpoint
 	r.GET("/health", healthHandler.HealthCheck)
 
@@ -99,5 +100,9 @@ func setupRoutes(r *gin.Engine, downloadHandler *handlers.DownloadHandler, fileH
 		// File discovery and streaming endpoints
 		apiGroup.GET("/files", fileHandler.ListFiles)
 		apiGroup.GET("/files/stream/*filepath", fileHandler.StreamFile)
+
+		// Settings endpoints
+		apiGroup.GET("/settings", settingsHandler.GetSettings)
+		apiGroup.POST("/settings", settingsHandler.UpdateSettings)
 	}
 }

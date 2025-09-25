@@ -3,6 +3,7 @@ import { Layout } from '@/components/layout/Layout'
 import { SearchPage } from '@/components/search/SearchPage'
 import { DownloadsPage } from '@/components/downloads/DownloadsPage'
 import { FilesPage } from '@/components/files/FilesPage'
+import { SettingsPage } from '@/components/settings/SettingsPage'
 
 function App() {
   return (
@@ -13,6 +14,7 @@ function App() {
           <Route path="search" element={<SearchPage />} />
           <Route path="downloads" element={<DownloadsPage />} />
           <Route path="files" element={<FilesPage />} />
+          <Route path="settings" element={<SettingsPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

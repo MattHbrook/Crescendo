@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"crescendo/api"
+	"crescendo/cmd"
 	"crescendo/config"
 	"io"
 	"log"
@@ -24,8 +25,13 @@ import (
 )
 
 func main() {
-	if !api.DirExists(config.GetDownloadLocation()) {
-		log.Fatalf("You must provide a valid DOWNLOAD_LOCATION folder")
+	// Ensure the download directory exists (create if needed)
+	downloadPath := config.GetDownloadLocation()
+	if !api.DirExists(downloadPath) {
+		if err := os.MkdirAll(downloadPath, 0755); err != nil {
+			log.Fatalf("Could not create download directory %s: %v", downloadPath, err)
+		}
+		log.Printf("Created download directory: %s", downloadPath)
 	}
 
 	asciiArt := `
@@ -53,7 +59,7 @@ func main() {
 
 	// Server mode takes precedence
 	if server {
-		startWebServer(port)
+		cmd.StartWebServer(port)
 		return
 	}
 

@@ -284,6 +284,17 @@ class ApiService {
     })
   }
 
+  // Convenience methods for download operations (matching SearchPage expectations)
+  async downloadTrack(trackId: string): Promise<{ jobId: string }> {
+    const job = await this.queueTrackDownload(trackId)
+    return { jobId: job.id }
+  }
+
+  async downloadAlbum(albumId: string): Promise<{ jobId: string }> {
+    const job = await this.queueAlbumDownload(albumId)
+    return { jobId: job.id }
+  }
+
   // File management
   async getFiles(): Promise<FileItem[]> {
     const response = await this.request<{ files: FileItem[] }>('/api/files')
@@ -292,6 +303,18 @@ class ApiService {
 
   getFileStreamUrl(filePath: string): string {
     return `${this.baseUrl}/api/files/stream/${encodeURIComponent(filePath)}`
+  }
+
+  // Settings management
+  async getSettings(): Promise<{ downloadLocation: string }> {
+    return await this.request<{ downloadLocation: string }>('/api/settings')
+  }
+
+  async updateSettings(settings: { downloadLocation: string }): Promise<void> {
+    await this.request('/api/settings', {
+      method: 'POST',
+      body: JSON.stringify(settings)
+    })
   }
 
   // Cleanup method

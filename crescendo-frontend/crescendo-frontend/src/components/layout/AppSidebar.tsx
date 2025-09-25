@@ -1,4 +1,4 @@
-import { Search, Download, FolderOpen, Music } from 'lucide-react'
+import { Search, Download, FolderOpen, Music, Settings } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
 
 const items = [
@@ -19,6 +19,12 @@ const items = [
     url: '/files',
     icon: FolderOpen,
     description: 'Browse downloaded music'
+  },
+  {
+    title: 'Settings',
+    url: '/settings',
+    icon: Settings,
+    description: 'Configure app preferences'
   },
 ]
 
