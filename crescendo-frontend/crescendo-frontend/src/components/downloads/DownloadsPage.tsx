@@ -195,90 +195,188 @@ export function DownloadsPage() {
 
   if (isLoading) {
     return (
-      <div className="space-y-6">
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
         <div>
-          <h1 className="text-3xl font-bold">Downloads</h1>
-          <p className="text-muted-foreground">
+          <h1 style={{
+            fontSize: '24px',
+            fontWeight: 'bold',
+            color: '#f1f5f9',
+            marginBottom: '8px'
+          }}>Downloads</h1>
+          <p style={{
+            color: '#94a3b8',
+            fontSize: '14px'
+          }}>
             Manage your download queue and monitor progress
           </p>
         </div>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-center py-8">
-              <Loader2 className="mx-auto h-8 w-8 animate-spin text-muted-foreground mb-4" />
-              <p className="text-muted-foreground">Loading download queue...</p>
-            </div>
-          </CardContent>
-        </Card>
+        <div style={{
+          backgroundColor: '#1e293b',
+          border: '1px solid #475569',
+          borderRadius: '8px',
+          padding: '24px'
+        }}>
+          <div style={{
+            textAlign: 'center',
+            padding: '32px 0'
+          }}>
+            <Loader2 style={{
+              width: '32px',
+              height: '32px',
+              margin: '0 auto 16px',
+              color: '#94a3b8'
+            }} className="animate-spin" />
+            <p style={{
+              color: '#94a3b8',
+              fontSize: '16px'
+            }}>Loading download queue...</p>
+          </div>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
-          <h1 className="text-3xl font-bold">Downloads</h1>
-          <p className="text-muted-foreground">
+          <h1 style={{
+            fontSize: '24px',
+            fontWeight: 'bold',
+            color: '#f1f5f9',
+            marginBottom: '8px'
+          }}>Downloads</h1>
+          <p style={{
+            color: '#94a3b8',
+            fontSize: '14px'
+          }}>
             Manage your download queue and monitor progress
           </p>
         </div>
-        <div className="flex items-center gap-4">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
           {/* Connection Status Indicator */}
-          <div className="flex items-center gap-2">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             {connectionStatus === 'connected' && (
               <>
-                <Wifi className="w-4 h-4 text-green-500" />
-                <span className="text-sm text-green-600">Live Updates</span>
+                <Wifi style={{ width: '16px', height: '16px', color: '#10b981' }} />
+                <span style={{ fontSize: '14px', color: '#10b981' }}>Live Updates</span>
               </>
             )}
             {connectionStatus === 'connecting' && (
               <>
-                <Loader2 className="w-4 h-4 animate-spin text-yellow-500" />
-                <span className="text-sm text-yellow-600">Connecting...</span>
+                <Loader2 style={{ width: '16px', height: '16px', color: '#f59e0b' }} className="animate-spin" />
+                <span style={{ fontSize: '14px', color: '#f59e0b' }}>Connecting...</span>
               </>
             )}
             {connectionStatus === 'error' && (
               <>
-                <AlertCircle className="w-4 h-4 text-red-500" />
-                <span className="text-sm text-red-600">Connection Error</span>
+                <AlertCircle style={{ width: '16px', height: '16px', color: '#ef4444' }} />
+                <span style={{ fontSize: '14px', color: '#ef4444' }}>Connection Error</span>
               </>
             )}
             {connectionStatus === 'disconnected' && (
               <>
-                <WifiOff className="w-4 h-4 text-gray-500" />
-                <span className="text-sm text-gray-600">
+                <WifiOff style={{ width: '16px', height: '16px', color: '#6b7280' }} />
+                <span style={{ fontSize: '14px', color: '#6b7280' }}>
                   {activeDownloads.length > 0 ? 'Disconnected' : 'No Active Downloads'}
                 </span>
               </>
             )}
           </div>
 
-          <Button
-            variant="outline"
+          <button
             onClick={() => fetchDownloads(true)}
             disabled={isRefreshing}
+            style={{
+              padding: '8px 16px',
+              backgroundColor: 'transparent',
+              border: '1px solid #475569',
+              borderRadius: '6px',
+              color: '#f1f5f9',
+              fontSize: '14px',
+              cursor: isRefreshing ? 'not-allowed' : 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              opacity: isRefreshing ? 0.6 : 1
+            }}
+            onMouseEnter={(e) => {
+              if (!isRefreshing) {
+                e.currentTarget.style.backgroundColor = '#334155'
+              }
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'transparent'
+            }}
           >
-            <RefreshCw className={`w-4 h-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+            <RefreshCw style={{
+              width: '16px',
+              height: '16px',
+              animation: isRefreshing ? 'spin 1s linear infinite' : 'none'
+            }} />
             Refresh
-          </Button>
+          </button>
         </div>
       </div>
 
       {/* Active Downloads */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            Active Downloads
-            <Badge variant="secondary">{activeDownloads.length} active</Badge>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
+      <div style={{
+        backgroundColor: '#1e293b',
+        border: '1px solid #475569',
+        borderRadius: '8px'
+      }}>
+        <div style={{
+          padding: '24px 24px 0 24px',
+          borderBottom: '1px solid #475569'
+        }}>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            paddingBottom: '16px'
+          }}>
+            <h2 style={{
+              fontSize: '20px',
+              fontWeight: 'bold',
+              color: '#f1f5f9'
+            }}>
+              Active Downloads
+            </h2>
+            <span style={{
+              padding: '4px 12px',
+              backgroundColor: '#334155',
+              border: '1px solid #475569',
+              borderRadius: '6px',
+              fontSize: '12px',
+              color: '#e2e8f0',
+              fontWeight: '500'
+            }}>
+              {activeDownloads.length} active
+            </span>
+          </div>
+        </div>
+        <div style={{ padding: '24px' }}>
           {activeDownloads.length === 0 ? (
-            <div className="text-center text-muted-foreground py-8">
-              <Download className="mx-auto h-12 w-12 mb-4 opacity-50" />
-              <p>No active downloads</p>
-              <p className="text-sm">Start downloading music from the Search page</p>
+            <div style={{
+              textAlign: 'center',
+              padding: '32px 0',
+              color: '#94a3b8'
+            }}>
+              <Download style={{
+                width: '48px',
+                height: '48px',
+                margin: '0 auto 16px',
+                opacity: 0.5
+              }} />
+              <p style={{
+                fontSize: '16px',
+                marginBottom: '8px',
+                color: '#f1f5f9'
+              }}>No active downloads</p>
+              <p style={{
+                fontSize: '14px',
+                color: '#94a3b8'
+              }}>Start downloading music from the Search page</p>
             </div>
           ) : (
             <Table>
@@ -353,21 +451,47 @@ export function DownloadsPage() {
               </TableBody>
             </Table>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Completed Downloads */}
       {completedDownloads.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              Completed Downloads
-              <Badge variant="secondary" className="bg-green-500 hover:bg-green-600">
+        <div style={{
+          backgroundColor: '#1e293b',
+          border: '1px solid #475569',
+          borderRadius: '8px'
+        }}>
+          <div style={{
+            padding: '24px 24px 0 24px',
+            borderBottom: '1px solid #475569'
+          }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              paddingBottom: '16px'
+            }}>
+              <h2 style={{
+                fontSize: '20px',
+                fontWeight: 'bold',
+                color: '#f1f5f9'
+              }}>
+                Completed Downloads
+              </h2>
+              <span style={{
+                padding: '4px 12px',
+                backgroundColor: '#10b981',
+                border: '1px solid #059669',
+                borderRadius: '6px',
+                fontSize: '12px',
+                color: '#ffffff',
+                fontWeight: '500'
+              }}>
                 {completedDownloads.length} completed
-              </Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+              </span>
+            </div>
+          </div>
+          <div style={{ padding: '24px' }}>
             <Table>
               <TableHeader>
                 <TableRow>
@@ -410,20 +534,48 @@ export function DownloadsPage() {
                 ))}
               </TableBody>
             </Table>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       )}
 
       {/* Failed Downloads */}
       {failedDownloads.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              Failed Downloads
-              <Badge variant="destructive">{failedDownloads.length} failed</Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+        <div style={{
+          backgroundColor: '#1e293b',
+          border: '1px solid #475569',
+          borderRadius: '8px'
+        }}>
+          <div style={{
+            padding: '24px 24px 0 24px',
+            borderBottom: '1px solid #475569'
+          }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              paddingBottom: '16px'
+            }}>
+              <h2 style={{
+                fontSize: '20px',
+                fontWeight: 'bold',
+                color: '#f1f5f9'
+              }}>
+                Failed Downloads
+              </h2>
+              <span style={{
+                padding: '4px 12px',
+                backgroundColor: '#dc2626',
+                border: '1px solid #b91c1c',
+                borderRadius: '6px',
+                fontSize: '12px',
+                color: '#ffffff',
+                fontWeight: '500'
+              }}>
+                {failedDownloads.length} failed
+              </span>
+            </div>
+          </div>
+          <div style={{ padding: '24px' }}>
             <Table>
               <TableHeader>
                 <TableRow>
@@ -468,18 +620,22 @@ export function DownloadsPage() {
                 ))}
               </TableBody>
             </Table>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       )}
 
       {/* Cancel Confirmation Dialog */}
       <Dialog open={cancelDialog.isOpen} onOpenChange={(open) =>
         setCancelDialog({ isOpen: open, jobId: '', title: '' })
       }>
-        <DialogContent>
+        <DialogContent style={{
+          backgroundColor: '#1e293b',
+          border: '1px solid #475569',
+          color: '#f1f5f9'
+        }}>
           <DialogHeader>
-            <DialogTitle>Cancel Download</DialogTitle>
-            <DialogDescription>
+            <DialogTitle style={{ color: '#f1f5f9' }}>Cancel Download</DialogTitle>
+            <DialogDescription style={{ color: '#94a3b8' }}>
               Are you sure you want to cancel the download of "{cancelDialog.title}"?
               This action cannot be undone and any partial progress will be lost.
             </DialogDescription>
@@ -488,12 +644,22 @@ export function DownloadsPage() {
             <Button
               variant="outline"
               onClick={() => setCancelDialog({ isOpen: false, jobId: '', title: '' })}
+              style={{
+                backgroundColor: 'transparent',
+                border: '1px solid #475569',
+                color: '#f1f5f9'
+              }}
             >
               Keep Download
             </Button>
             <Button
               variant="destructive"
               onClick={() => handleCancelDownload(cancelDialog.jobId)}
+              style={{
+                backgroundColor: '#dc2626',
+                border: '1px solid #b91c1c',
+                color: '#ffffff'
+              }}
             >
               Cancel Download
             </Button>
