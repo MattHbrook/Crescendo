@@ -21,3 +21,4 @@ crescendo
 # OS files
 Thumbs.db
 *.log
+*.tmp
