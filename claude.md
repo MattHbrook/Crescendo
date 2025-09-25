@@ -1,5 +1,44 @@
 # Crescendo - Web Service Transformation Project
 
+## ⚠️ CRITICAL: Development Workflow Guidelines
+
+**🚨 DO NOT WORK DIRECTLY IN MAIN BRANCH**
+
+### Required Development Workflow:
+1. **Create feature branches** for all new work: `git checkout -b feature/description`
+2. **Work in branches** - never make direct commits to main
+3. **Test thoroughly** in feature branches before merging
+4. **Merge to main only when stable** - main should always be deployable
+5. **Use pull requests** when working with team members
+
+### Why This Matters:
+- **Stability**: Main branch contains working releases (0.2.4, etc.)
+- **Recovery**: Can always reset to last stable commit if things break
+- **Collaboration**: Multiple developers can work on different features safely
+- **Quality**: Feature branches can be tested before affecting main
+
+### Current Stable State:
+- **Version**: 0.2.4 (commit `b5eca13`)
+- **Status**: Fully functional backend + frontend with UI improvements
+- **Features**: Search, downloads, progress tracking, improved CORS
+
+### Example Workflow:
+```bash
+# Start new feature
+git checkout main
+git pull origin main
+git checkout -b feature/file-browser
+
+# Work on feature
+# ... make changes, test thoroughly ...
+
+# When feature is complete and tested
+git checkout main
+git merge feature/file-browser
+git push origin main
+git branch -d feature/file-browser
+```
+
 ## Project Overview
 Transform the existing godab CLI application into a web service backend for "Crescendo", a modern React-based audio downloader. The godab project already handles all complex DAB Music API integration, file downloads, and organization - we need to add web service capabilities while preserving existing CLI functionality.
 
