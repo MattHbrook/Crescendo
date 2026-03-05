@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/MattHbrook/Crescendo/internal/config"
+	"github.com/MattHbrook/Crescendo/internal/db"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 )
@@ -15,6 +16,18 @@ func main() {
 	if err != nil {
 		log.Fatalf("config: %v", err)
 	}
+
+	database, err := db.Open(cfg.DataPath)
+	if err != nil {
+		log.Fatalf("db open: %v", err)
+	}
+	defer func() { _ = database.Close() }()
+
+	if err := db.Migrate(database); err != nil {
+		log.Fatalf("db migrate: %v", err)
+	}
+
+	_ = db.NewStore(database) // will be passed to handlers in a future PR
 
 	r := newRouter()
 
