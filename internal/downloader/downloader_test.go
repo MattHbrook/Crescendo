@@ -130,6 +130,27 @@ func (s *mockDownloadStore) FailDownload(_ context.Context, id int64, errMsg str
 	return nil
 }
 
+type mockCoverFetcher struct {
+	covers map[int64]*hifi.Cover
+	err    error
+}
+
+func (m *mockCoverFetcher) GetCover(_ context.Context, albumID int64) (*hifi.Cover, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	c, ok := m.covers[albumID]
+	if !ok {
+		return nil, fmt.Errorf("no cover for album %d", albumID)
+	}
+	return c, nil
+}
+
+// noCoverFetcher returns a mock that always errors (cover art unavailable).
+func noCoverFetcher() *mockCoverFetcher {
+	return &mockCoverFetcher{err: fmt.Errorf("no covers")}
+}
+
 // --- helpers ---
 
 // encodeBTSManifest builds a base64-encoded BTS manifest JSON pointing at the
@@ -201,7 +222,7 @@ func TestDownload_Success(t *testing.T) {
 
 	store := newMockDownloadStore()
 	tmpDir := t.TempDir()
-	dl := New(tmpDir, 3, player, fetcher, store)
+	dl := New(tmpDir, 3, player, fetcher, noCoverFetcher(), store)
 
 	err := dl.Download(context.Background(), Request{
 		TidalAlbumID: 42,
@@ -249,7 +270,7 @@ func TestDownload_AlbumFetchError(t *testing.T) {
 	player := &mockPlayer{}
 	store := newMockDownloadStore()
 
-	dl := New(t.TempDir(), 3, player, fetcher, store)
+	dl := New(t.TempDir(), 3, player, fetcher, noCoverFetcher(), store)
 
 	err := dl.Download(context.Background(), Request{
 		TidalAlbumID: 99,
@@ -290,7 +311,7 @@ func TestDownload_TrackPlaybackError(t *testing.T) {
 	player := &mockPlayer{err: fmt.Errorf("playback service unavailable")}
 	store := newMockDownloadStore()
 
-	dl := New(t.TempDir(), 3, player, fetcher, store)
+	dl := New(t.TempDir(), 3, player, fetcher, noCoverFetcher(), store)
 
 	err := dl.Download(context.Background(), Request{
 		TidalAlbumID: 10,
@@ -353,7 +374,7 @@ func TestDownload_HTTPError(t *testing.T) {
 	}
 
 	store := newMockDownloadStore()
-	dl := New(t.TempDir(), 3, player, fetcher, store)
+	dl := New(t.TempDir(), 3, player, fetcher, noCoverFetcher(), store)
 
 	err := dl.Download(context.Background(), Request{
 		TidalAlbumID: 20,
@@ -414,7 +435,7 @@ func TestDownloadAsync_Concurrency(t *testing.T) {
 	fetcher := &mockAlbumFetcher{albums: albums}
 	store := newMockDownloadStore()
 
-	dl := New(t.TempDir(), 2, player, fetcher, store)
+	dl := New(t.TempDir(), 2, player, fetcher, noCoverFetcher(), store)
 
 	for i := int64(1); i <= 3; i++ {
 		dl.DownloadAsync(context.Background(), Request{

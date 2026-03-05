@@ -1,10 +1,12 @@
 package main
 
 import (
+	"io/fs"
 	"log"
 	"net/http"
 	"time"
 
+	crescendo "github.com/MattHbrook/Crescendo"
 	"github.com/MattHbrook/Crescendo/internal/config"
 	"github.com/MattHbrook/Crescendo/internal/db"
 	"github.com/MattHbrook/Crescendo/internal/discovery"
@@ -35,15 +37,25 @@ func main() {
 	store := db.NewStore(database)
 	hifiClient := hifi.NewClient(cfg.HiFiAPIURL)
 	scanner := library.NewScanner(cfg.MusicPath, store, hifiClient)
-	dl := downloader.New(cfg.MusicPath, cfg.MaxConcurrentDownloads, hifiClient, hifiClient, store)
+	dl := downloader.New(cfg.MusicPath, cfg.MaxConcurrentDownloads, hifiClient, hifiClient, hifiClient, store)
 	disc := discovery.NewEngine(store, hifiClient)
 
-	h, err := handlers.New("templates", store, hifiClient, scanner, dl, disc, cfg.DefaultQuality)
+	templatesFS, err := fs.Sub(crescendo.Content, "templates")
+	if err != nil {
+		log.Fatalf("embedded templates: %v", err)
+	}
+
+	h, err := handlers.New(templatesFS, store, hifiClient, scanner, dl, disc, cfg.DefaultQuality)
 	if err != nil {
 		log.Fatalf("handlers: %v", err)
 	}
 
-	r := newRouter(h)
+	staticFS, err := fs.Sub(crescendo.Content, "static")
+	if err != nil {
+		log.Fatalf("embedded static: %v", err)
+	}
+
+	r := newRouter(h, staticFS)
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,
@@ -60,15 +72,15 @@ func main() {
 	}
 }
 
-func newRouter(h *handlers.Handler) *chi.Mux {
+func newRouter(h *handlers.Handler, staticFS fs.FS) *chi.Mux {
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 
 	r.Get("/health", handleHealth)
 
-	// Serve static assets.
-	r.Handle("/static/*", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
+	// Serve embedded static assets.
+	r.Handle("/static/*", http.StripPrefix("/static/", http.FileServerFS(staticFS)))
 
 	// Register all page and action routes.
 	h.Routes(r)

@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
+	"io/fs"
 	"net/http"
-	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -96,9 +96,10 @@ type Handler struct {
 	quality    string // default download quality from config
 }
 
-// New creates a Handler, parsing all HTML templates from templateDir.
+// New creates a Handler, parsing all HTML templates from the given filesystem.
+// The filesystem should contain template files at its root (e.g. "layout.html").
 func New(
-	templateDir string,
+	templateFS fs.FS,
 	store HandlerStore,
 	hifi HandlerHiFi,
 	scanner HandlerScanner,
@@ -107,7 +108,7 @@ func New(
 	quality string,
 ) (*Handler, error) {
 	// Parse layout as the base template that every page clones.
-	base, err := template.New("layout").Funcs(funcMap).ParseFiles(filepath.Join(templateDir, "layout.html"))
+	base, err := template.New("layout").Funcs(funcMap).ParseFS(templateFS, "layout.html")
 	if err != nil {
 		return nil, fmt.Errorf("handlers: parsing layout template: %w", err)
 	}
@@ -131,7 +132,7 @@ func New(
 
 	tmpl := make(map[string]*template.Template, len(pages))
 	for name, file := range pages {
-		t, err := template.Must(base.Clone()).ParseFiles(filepath.Join(templateDir, file))
+		t, err := template.Must(base.Clone()).ParseFS(templateFS, file)
 		if err != nil {
 			return nil, fmt.Errorf("handlers: parsing template %s: %w", file, err)
 		}
