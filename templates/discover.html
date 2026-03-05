@@ -1,0 +1,31 @@
+{{define "content"}}
+<h1>Discover</h1>
+<p>Album recommendations based on your library</p>
+
+<button hx-get="/discover" hx-target="main" hx-swap="innerHTML" hx-indicator="#refresh-spinner">
+    Refresh Recommendations
+</button>
+<span id="refresh-spinner" class="htmx-indicator" aria-busy="true">Loading...</span>
+
+{{if .Recommendations}}
+<div class="grid">
+    {{range .Recommendations}}
+    <article>
+        <header>
+            <a href="/album/{{.AlbumID}}">{{.AlbumTitle}}</a>
+        </header>
+        {{if .Cover}}
+        <img src="https://resources.tidal.com/images/{{.Cover | replace "-" "/"}}/320x320.jpg" alt="{{.AlbumTitle}}" loading="lazy" style="width:100%;border-radius:var(--pico-border-radius)">
+        {{end}}
+        <footer>
+            <small>{{.ArtistName}}</small><br>
+            <small>Because you like <em>{{.SeedArtist}}</em></small><br>
+            <a href="/album/{{.AlbumID}}" role="button" class="outline">View Album</a>
+        </footer>
+    </article>
+    {{end}}
+</div>
+{{else}}
+<p>No recommendations available. Make sure your library has been scanned and artists are mapped to Tidal.</p>
+{{end}}
+{{end}}

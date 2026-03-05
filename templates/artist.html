@@ -1,0 +1,24 @@
+{{define "content"}}
+<h1>{{.Artist.Name}}</h1>
+
+{{if .Albums}}
+<div class="grid">
+    {{range .Albums}}
+    <article>
+        <header>
+            <a href="/album/{{.ID}}">{{.Title}}</a>
+        </header>
+        {{if .Cover}}
+        <img src="https://resources.tidal.com/images/{{.Cover | replace "-" "/"}}/320x320.jpg" alt="{{.Title}}" loading="lazy" style="width:100%;border-radius:var(--pico-border-radius)">
+        {{end}}
+        <footer>
+            <small>{{.ReleaseDate}} · {{.NumberOfTracks}} tracks</small><br>
+            <a href="/album/{{.ID}}" role="button" class="outline">View Album</a>
+        </footer>
+    </article>
+    {{end}}
+</div>
+{{else}}
+<p>No albums found.</p>
+{{end}}
+{{end}}

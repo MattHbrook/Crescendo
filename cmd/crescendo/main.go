@@ -7,7 +7,9 @@ import (
 
 	"github.com/MattHbrook/Crescendo/internal/config"
 	"github.com/MattHbrook/Crescendo/internal/db"
+	"github.com/MattHbrook/Crescendo/internal/discovery"
 	"github.com/MattHbrook/Crescendo/internal/downloader"
+	"github.com/MattHbrook/Crescendo/internal/handlers"
 	"github.com/MattHbrook/Crescendo/internal/hifi"
 	"github.com/MattHbrook/Crescendo/internal/library"
 	"github.com/go-chi/chi/v5"
@@ -32,10 +34,16 @@ func main() {
 
 	store := db.NewStore(database)
 	hifiClient := hifi.NewClient(cfg.HiFiAPIURL)
-	_ = library.NewScanner(cfg.MusicPath, store, hifiClient)                                     // will be started by handlers in a future PR
-	_ = downloader.New(cfg.MusicPath, cfg.MaxConcurrentDownloads, hifiClient, hifiClient, store) // will be used by handlers in a future PR
+	scanner := library.NewScanner(cfg.MusicPath, store, hifiClient)
+	dl := downloader.New(cfg.MusicPath, cfg.MaxConcurrentDownloads, hifiClient, hifiClient, store)
+	disc := discovery.NewEngine(store, hifiClient)
 
-	r := newRouter()
+	h, err := handlers.New("templates", store, hifiClient, scanner, dl, disc, cfg.DefaultQuality)
+	if err != nil {
+		log.Fatalf("handlers: %v", err)
+	}
+
+	r := newRouter(h)
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,
@@ -52,12 +60,18 @@ func main() {
 	}
 }
 
-func newRouter() *chi.Mux {
+func newRouter(h *handlers.Handler) *chi.Mux {
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 
 	r.Get("/health", handleHealth)
+
+	// Serve static assets.
+	r.Handle("/static/*", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
+
+	// Register all page and action routes.
+	h.Routes(r)
 
 	return r
 }

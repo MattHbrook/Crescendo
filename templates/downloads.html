@@ -1,0 +1,29 @@
+{{define "content"}}
+<h1>Downloads</h1>
+
+{{if .Active}}
+<h2>Active</h2>
+{{range .Active}}
+<article>
+    <header>{{.ArtistName}} — {{.AlbumTitle}}</header>
+    <progress value="{{.Progress}}" max="100"></progress>
+    <small>{{.CompletedTracks}}/{{.TotalTracks}} tracks · {{.Quality}}</small>
+</article>
+{{end}}
+{{end}}
+
+<h2>History</h2>
+{{if .History}}
+{{range .History}}
+<article>
+    <header>{{.ArtistName}} — {{.AlbumTitle}}</header>
+    <small>
+        {{if eq .Status "complete"}}Complete{{else if eq .Status "failed"}}Failed{{if .Error}} — {{deref .Error}}{{end}}{{else}}{{.Status}}{{end}}
+        · {{.Quality}} · {{.CreatedAt}}
+    </small>
+</article>
+{{end}}
+{{else}}
+<p>No download history yet.</p>
+{{end}}
+{{end}}

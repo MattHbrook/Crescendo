@@ -4,10 +4,15 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/go-chi/chi/v5"
 )
 
 func TestHealthEndpoint(t *testing.T) {
-	r := newRouter()
+	// Build a minimal router with just the health endpoint to avoid needing
+	// a fully-wired handlers.Handler.
+	r := chi.NewRouter()
+	r.Get("/health", handleHealth)
 
 	tests := []struct {
 		name       string
