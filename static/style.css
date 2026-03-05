@@ -1,0 +1,42 @@
+/* Crescendo — Pico CSS overrides */
+
+:root {
+    --pico-font-family: system-ui, -apple-system, sans-serif;
+}
+
+/* Tighter grid for album cards on mobile */
+.grid > article {
+    padding: 0.75rem;
+}
+
+.grid > article img {
+    aspect-ratio: 1;
+    object-fit: cover;
+}
+
+/* HTMX loading indicator */
+.htmx-indicator {
+    display: none;
+}
+
+.htmx-request .htmx-indicator,
+.htmx-request.htmx-indicator {
+    display: inline;
+}
+
+/* Progress bar in downloads */
+progress {
+    width: 100%;
+    margin: 0.5rem 0;
+}
+
+/* Nav on mobile */
+@media (max-width: 576px) {
+    nav ul {
+        flex-wrap: wrap;
+        gap: 0.25rem;
+    }
+    nav ul li {
+        font-size: 0.85rem;
+    }
+}

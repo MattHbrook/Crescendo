@@ -1,0 +1,36 @@
+{{define "content"}}
+<hgroup>
+    <h1>{{.Album.Title}}</h1>
+    <p>{{.Album.Artist.Name}} · {{.Album.NumberOfTracks}} tracks</p>
+</hgroup>
+
+{{if .Album.Cover}}
+<img src="https://resources.tidal.com/images/{{.Album.Cover | replace "-" "/"}}/640x640.jpg" alt="{{.Album.Title}}" style="max-width:320px;border-radius:var(--pico-border-radius)">
+{{end}}
+
+<div style="margin-top:1rem">
+    <button hx-post="/download" hx-vals='{"album_id": "{{.Album.ID}}", "quality": "{{.Quality}}"}' hx-target="#download-status" hx-swap="innerHTML">
+        Download ({{.Quality}})
+    </button>
+    <span id="download-status"></span>
+</div>
+
+<table role="grid">
+    <thead>
+        <tr>
+            <th scope="col">#</th>
+            <th scope="col">Title</th>
+            <th scope="col">Duration</th>
+        </tr>
+    </thead>
+    <tbody>
+        {{range .Tracks}}
+        <tr>
+            <td>{{.TrackNumber}}</td>
+            <td>{{.Title}}</td>
+            <td>{{.Duration | formatDuration}}</td>
+        </tr>
+        {{end}}
+    </tbody>
+</table>
+{{end}}

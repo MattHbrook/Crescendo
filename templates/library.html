@@ -1,0 +1,33 @@
+{{define "content"}}
+<h1>Library</h1>
+<p>{{len .Artists}} artists in your collection</p>
+
+{{if .Artists}}
+<table role="grid">
+    <thead>
+        <tr>
+            <th scope="col">Artist</th>
+            <th scope="col">Tidal Match</th>
+        </tr>
+    </thead>
+    <tbody>
+        {{range .Artists}}
+        <tr>
+            <td>
+                {{if .TidalID}}
+                <a href="/artist/{{deref .TidalID}}">{{.FolderName}}</a>
+                {{else}}
+                {{.FolderName}}
+                {{end}}
+            </td>
+            <td>
+                {{if .TidalName}}{{deref .TidalName}}{{else}}<em>Not matched</em>{{end}}
+            </td>
+        </tr>
+        {{end}}
+    </tbody>
+</table>
+{{else}}
+<p>No artists found. Run a library scan first.</p>
+{{end}}
+{{end}}
