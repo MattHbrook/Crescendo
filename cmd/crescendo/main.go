@@ -7,6 +7,7 @@ import (
 
 	"github.com/MattHbrook/Crescendo/internal/config"
 	"github.com/MattHbrook/Crescendo/internal/db"
+	"github.com/MattHbrook/Crescendo/internal/hifi"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 )
@@ -27,7 +28,8 @@ func main() {
 		log.Fatalf("db migrate: %v", err)
 	}
 
-	_ = db.NewStore(database) // will be passed to handlers in a future PR
+	_ = db.NewStore(database)          // will be passed to handlers in a future PR
+	_ = hifi.NewClient(cfg.HiFiAPIURL) // will be passed to handlers in a future PR
 
 	r := newRouter()
 
