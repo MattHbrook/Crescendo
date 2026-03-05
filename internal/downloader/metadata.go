@@ -32,17 +32,25 @@ func tagFLAC(path string, meta trackMeta) error {
 	if err != nil {
 		return fmt.Errorf("parse flac: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	// Build a fresh Vorbis comment block.
 	cmts := flacvorbis.New()
-	cmts.Add(flacvorbis.FIELD_ARTIST, meta.Artist)
-	cmts.Add(flacvorbis.FIELD_ALBUM, meta.Album)
-	cmts.Add(flacvorbis.FIELD_TITLE, meta.Title)
-	cmts.Add(flacvorbis.FIELD_TRACKNUMBER, strconv.Itoa(meta.TrackNumber))
-	cmts.Add(flacvorbis.FIELD_DATE, meta.Date)
+	for _, tag := range []struct{ k, v string }{
+		{flacvorbis.FIELD_ARTIST, meta.Artist},
+		{flacvorbis.FIELD_ALBUM, meta.Album},
+		{flacvorbis.FIELD_TITLE, meta.Title},
+		{flacvorbis.FIELD_TRACKNUMBER, strconv.Itoa(meta.TrackNumber)},
+		{flacvorbis.FIELD_DATE, meta.Date},
+	} {
+		if err := cmts.Add(tag.k, tag.v); err != nil {
+			return fmt.Errorf("adding tag %s: %w", tag.k, err)
+		}
+	}
 	if meta.TotalDiscs > 1 {
-		cmts.Add("DISCNUMBER", strconv.Itoa(meta.DiscNumber))
+		if err := cmts.Add("DISCNUMBER", strconv.Itoa(meta.DiscNumber)); err != nil {
+			return fmt.Errorf("adding tag DISCNUMBER: %w", err)
+		}
 	}
 
 	cmtBlock := cmts.Marshal()
