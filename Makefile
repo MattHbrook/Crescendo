@@ -1,93 +1,55 @@
-# Crescendo Makefile
-# Provides convenient commands for testing, building, and development
+.PHONY: all build test test-v test-integration lint sec fmt tidy clean docker help
 
-.PHONY: test test-verbose test-coverage test-race test-bench clean build run server dev
+BINARY := build/crescendo
+GO := go
+GOFLAGS := -race -count=1
+LDFLAGS := -ldflags="-s -w"
 
-# Default target
-test:
-	@echo "🧪 Running tests..."
-	@go test ./...
+## all: run all quality gates (fmt + lint + test + sec + build)
+all: fmt lint test sec build
 
-# Verbose test output
-test-verbose:
-	@echo "🧪 Running tests with verbose output..."
-	@go test -v ./...
-
-# Test with coverage reporting
-test-coverage:
-	@echo "🧪 Running tests with coverage..."
-	@go test -coverprofile=coverage.out ./...
-	@go tool cover -func=coverage.out | grep -E "(total:|main\.go)"
-	@go tool cover -html=coverage.out -o coverage.html
-	@echo "📈 Coverage report generated: coverage.html"
-
-# Test for race conditions
-test-race:
-	@echo "🏁 Running race condition tests..."
-	@go test -race ./...
-
-# Run benchmarks
-test-bench:
-	@echo "⚡ Running benchmarks..."
-	@go test -bench=. -benchmem ./...
-
-# Run comprehensive test suite
-test-all: test-coverage test-race test-bench
-	@echo "✅ Comprehensive test suite complete!"
-
-# Clean test artifacts
-clean:
-	@echo "🧹 Cleaning up test artifacts..."
-	@rm -f coverage.out coverage.html
-
-# Build the application
+## build: compile to build/crescendo
 build:
-	@echo "🔨 Building Crescendo..."
-	@go build -o crescendo .
+	$(GO) build $(LDFLAGS) -o $(BINARY) ./cmd/crescendo
 
-# Run CLI mode
-run:
-	@echo "🚀 Running Crescendo CLI..."
-	@go run .
+## test: run tests with race detector
+test:
+	$(GO) test $(GOFLAGS) ./...
 
-# Run server mode
-server:
-	@echo "🌐 Starting Crescendo server..."
-	@go run . --server --port 8080
+## test-v: run tests with verbose output
+test-v:
+	$(GO) test $(GOFLAGS) -v ./...
 
-# Development mode with hot reload (requires air: go install github.com/cosmtrek/air@latest)
-dev:
-	@echo "🔥 Starting development server with hot reload..."
-	@air || echo "⚠️  Air not installed. Run: go install github.com/cosmtrek/air@latest"
+## test-integration: run integration tests
+test-integration:
+	$(GO) test $(GOFLAGS) -tags=integration ./...
 
-# Run automated test script
-test-script:
-	@./test.sh
+## lint: run golangci-lint
+lint:
+	golangci-lint run
 
-# Open coverage report in browser (macOS)
-test-open:
-	@./test.sh --open
+## sec: run govulncheck
+sec:
+	govulncheck ./...
 
-# Help
+## fmt: format code with gofmt and goimports
+fmt:
+	gofmt -w .
+	goimports -w .
+
+## tidy: tidy and verify go.mod
+tidy:
+	$(GO) mod tidy
+	$(GO) mod verify
+
+## clean: remove build artifacts
+clean:
+	rm -rf build/
+
+## docker: build Docker image locally
+docker:
+	docker build -t crescendo:local .
+
+## help: show this help
 help:
-	@echo "Crescendo Makefile Commands:"
-	@echo ""
-	@echo "Testing:"
-	@echo "  make test         - Run basic tests"
-	@echo "  make test-verbose - Run tests with verbose output"
-	@echo "  make test-coverage- Run tests with coverage reporting"
-	@echo "  make test-race    - Run race condition tests"
-	@echo "  make test-bench   - Run performance benchmarks"
-	@echo "  make test-all     - Run comprehensive test suite"
-	@echo "  make test-script  - Run automated test script"
-	@echo "  make test-open    - Run tests and open coverage report"
-	@echo ""
-	@echo "Development:"
-	@echo "  make build        - Build the application"
-	@echo "  make run          - Run CLI mode"
-	@echo "  make server       - Run server mode"
-	@echo "  make dev          - Start development server with hot reload"
-	@echo ""
-	@echo "Utilities:"
-	@echo "  make clean        - Clean test artifacts"
-	@echo "  make help         - Show this help"
+	@grep -E '^## ' $(MAKEFILE_LIST) | sed 's/## //' | column -t -s ':'

@@ -1,60 +1,25 @@
-# Godab
+# Crescendo
 
-## Description
+Music discovery & download app. Bridges [hifi-api](https://github.com/MattHbrook/hifi-api) with a local FLAC library.
 
-A [dabmusic](https://dabmusic.xyz) CLI downloader written in go.
+## Quick Start
 
-## Build
+```bash
+# Local development
+make all            # run full quality gate
+make build          # compile binary
 
-In order to create a binary from the given source you can use
-
-```sh
-$ go build
-$ ./godab
+# Docker
+docker-compose up --build
 ```
 
-Otherwise you can always run it directly with
+## Architecture
 
-```sh
-$ go run main.go
-```
+- **Go** single-binary server with Chi router, HTMX, and Pico CSS
+- **SQLite** for library index, artist mappings, and download history
+- **hifi-api** container for Tidal API access
+- **ffmpeg** for HI_RES_LOSSLESS DASH remuxing
 
-N.B: Remember that you always have to define two env variables
+## Development
 
-- DOWNLOAD_LOCATION: to specify the location where you want your files to be downloaded
-- DAB_ENDPOINT: url of the `dab.yeet` domain you want to hit
-
-## Usage
-
-You can download any album or track using the following commands
-
-### First export needed env variables
-
-```sh
-export DAB_ENDPOINT=<DAB_ENDPOINT>
-export DOWNLOAD_LOCATION=<LOCATION>
-```
-
-Like in the following example:
-
-```sh
-export DAB_ENDPOINT=https://dabmusic.xyz
-export DOWNLOAD_LOCATION=.
-```
-
-Then you can download
-
-```sh
-# ALBUM
-go run main.go -album <ALBUM_ID>
-
-#TRACK
-go run main.go -track <TRACK_ID>
-
-#ARTIST
-go run main.go -artist <ARTIST_ID>
-```
-
-## Slow downloads
-
-If downloads take longer than usual to download and software may seem slower it is related to slow API fetching and responses.
+See [CLAUDE.md](CLAUDE.md) for development conventions and quality gates.

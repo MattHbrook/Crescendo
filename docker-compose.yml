@@ -1,0 +1,29 @@
+services:
+  hifi-api:
+    image: ghcr.io/matthbrook/hifi-api:main
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./hifi-api/token.json:/app/token.json:ro
+    environment:
+      - COUNTRY_CODE=US
+
+  crescendo:
+    build: .
+    ports:
+      - "8888:8888"
+    volumes:
+      - /Volumes/plex/Music:/music
+      - crescendo-data:/data
+    environment:
+      - HIFI_API_URL=http://hifi-api:8000
+      - MUSIC_PATH=/music
+      - DATA_PATH=/data
+      - PORT=8888
+      - DEFAULT_QUALITY=LOSSLESS
+      - MAX_CONCURRENT_DOWNLOADS=3
+    depends_on:
+      - hifi-api
+
+volumes:
+  crescendo-data:

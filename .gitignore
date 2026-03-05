@@ -1,25 +1,36 @@
-.DS_Store
-node_modules
+# Build output
+build/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
 
-# Downloaded music files
-*.flac
-*.mp3
-*.m4a
-*.wav
-Coldplay/
-Media/
-downloads/
-Active Downloads/
+# Test
+*.test
+*.out
+coverage.txt
+coverage.html
 
-# Build artifacts
-crescendo
+# Go
+vendor/
 
-# IDE files
-.vscode/
+# Database
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Environment
+.env
+
+# IDE
 .idea/
+.vscode/
+*.swp
+*.swo
+*~
 
-# OS files
+# OS
+.DS_Store
 Thumbs.db
-*.log
-*.tmp
-# Push test Thu Sep 25 12:22:40 CDT 2025
