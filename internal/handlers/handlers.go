@@ -402,6 +402,6 @@ func (h *Handler) StartScan(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	fmt.Fprintf(w, `{"artists_found":%d,"albums_found":%d,"artists_matched":%d,"errors":%d}`,
+	_, _ = fmt.Fprintf(w, `{"artists_found":%d,"albums_found":%d,"artists_matched":%d,"errors":%d}`,
 		result.ArtistsFound, result.AlbumsFound, result.ArtistsMatched, len(result.Errors))
 }

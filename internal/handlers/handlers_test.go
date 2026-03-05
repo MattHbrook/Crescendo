@@ -151,9 +151,9 @@ func newTestHandler(t *testing.T, store HandlerStore, hf HandlerHiFi, scanner Ha
 
 // chiContext injects a chi URL parameter into the request context so that
 // chi.URLParam works in tests without a full router.
-func chiContext(r *http.Request, key, value string) *http.Request {
+func chiContextID(r *http.Request, value string) *http.Request {
 	rctx := chi.NewRouteContext()
-	rctx.URLParams.Add(key, value)
+	rctx.URLParams.Add("id", value)
 	return r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, rctx))
 }
 
@@ -275,7 +275,7 @@ func TestArtist(t *testing.T) {
 		h := newTestHandler(t, &mockStore{}, hf, &mockScanner{}, &mockDownloader{}, &mockDiscovery{})
 
 		req := httptest.NewRequest(http.MethodGet, "/artist/1", nil)
-		req = chiContext(req, "id", "1")
+		req = chiContextID(req,"1")
 		rec := httptest.NewRecorder()
 
 		h.Artist(rec, req)
@@ -289,7 +289,7 @@ func TestArtist(t *testing.T) {
 		h := newTestHandler(t, &mockStore{}, &mockHiFi{}, &mockScanner{}, &mockDownloader{}, &mockDiscovery{})
 
 		req := httptest.NewRequest(http.MethodGet, "/artist/abc", nil)
-		req = chiContext(req, "id", "abc")
+		req = chiContextID(req,"abc")
 		rec := httptest.NewRecorder()
 
 		h.Artist(rec, req)
@@ -321,7 +321,7 @@ func TestAlbum(t *testing.T) {
 		h := newTestHandler(t, &mockStore{}, hf, &mockScanner{}, &mockDownloader{}, &mockDiscovery{})
 
 		req := httptest.NewRequest(http.MethodGet, "/album/100", nil)
-		req = chiContext(req, "id", "100")
+		req = chiContextID(req,"100")
 		rec := httptest.NewRecorder()
 
 		h.Album(rec, req)
@@ -335,7 +335,7 @@ func TestAlbum(t *testing.T) {
 		h := newTestHandler(t, &mockStore{}, &mockHiFi{}, &mockScanner{}, &mockDownloader{}, &mockDiscovery{})
 
 		req := httptest.NewRequest(http.MethodGet, "/album/xyz", nil)
-		req = chiContext(req, "id", "xyz")
+		req = chiContextID(req,"xyz")
 		rec := httptest.NewRecorder()
 
 		h.Album(rec, req)
