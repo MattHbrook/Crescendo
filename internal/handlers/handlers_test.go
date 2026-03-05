@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -540,10 +541,20 @@ func TestStartScan(t *testing.T) {
 			t.Fatalf("expected application/json content type, got %q", ct)
 		}
 
-		body := rec.Body.String()
-		want := `{"artists_found":10,"albums_found":25,"artists_matched":8,"errors":1}`
-		if body != want {
-			t.Fatalf("unexpected body:\n got: %s\nwant: %s", body, want)
+		var got map[string]int
+		if err := json.NewDecoder(rec.Body).Decode(&got); err != nil {
+			t.Fatalf("failed to decode JSON body: %v", err)
+		}
+		want := map[string]int{
+			"artists_found":   10,
+			"albums_found":    25,
+			"artists_matched": 8,
+			"errors":          1,
+		}
+		for k, v := range want {
+			if got[k] != v {
+				t.Fatalf("key %q: got %d, want %d", k, got[k], v)
+			}
 		}
 	})
 }

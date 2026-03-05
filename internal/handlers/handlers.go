@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"html/template"
 	"net/http"
@@ -402,6 +403,10 @@ func (h *Handler) StartScan(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	_, _ = fmt.Fprintf(w, `{"artists_found":%d,"albums_found":%d,"artists_matched":%d,"errors":%d}`,
-		result.ArtistsFound, result.AlbumsFound, result.ArtistsMatched, len(result.Errors))
+	_ = json.NewEncoder(w).Encode(map[string]int{
+		"artists_found":   result.ArtistsFound,
+		"albums_found":    result.AlbumsFound,
+		"artists_matched": result.ArtistsMatched,
+		"errors":          len(result.Errors),
+	})
 }
