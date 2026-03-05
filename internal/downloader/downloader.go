@@ -25,6 +25,11 @@ type AlbumFetcher interface {
 	GetAlbum(ctx context.Context, id int64) (*hifi.AlbumDetail, error)
 }
 
+// CoverFetcher fetches cover art URLs for an album.
+type CoverFetcher interface {
+	GetCover(ctx context.Context, albumID int64) (*hifi.Cover, error)
+}
+
 // DownloadStore persists download state.
 type DownloadStore interface {
 	CreateDownload(ctx context.Context, tidalAlbumID int64, artistName, albumTitle, quality string, totalTracks int) (int64, error)
@@ -44,17 +49,19 @@ type Downloader struct {
 	musicPath string
 	player    TrackPlayer
 	albums    AlbumFetcher
+	covers    CoverFetcher
 	store     DownloadStore
 	sem       chan struct{} // limits concurrency
 	logger    *log.Logger
 }
 
 // New creates a Downloader with the given concurrency limit and dependencies.
-func New(musicPath string, maxConcurrent int, player TrackPlayer, albums AlbumFetcher, store DownloadStore) *Downloader {
+func New(musicPath string, maxConcurrent int, player TrackPlayer, albums AlbumFetcher, covers CoverFetcher, store DownloadStore) *Downloader {
 	return &Downloader{
 		musicPath: musicPath,
 		player:    player,
 		albums:    albums,
+		covers:    covers,
 		store:     store,
 		sem:       make(chan struct{}, maxConcurrent),
 		logger:    log.New(os.Stderr, "[downloader] ", log.LstdFlags),
@@ -72,6 +79,30 @@ func (d *Downloader) Download(ctx context.Context, req Request) error {
 
 	if err := os.MkdirAll(outputDir, 0o750); err != nil {
 		return fmt.Errorf("downloader: creating album directory: %w", err)
+	}
+
+	// Fetch cover art (best-effort — tagging continues without it).
+	var coverJPEG []byte
+	cover, err := d.covers.GetCover(ctx, req.TidalAlbumID)
+	if err != nil {
+		d.logger.Printf("cover art unavailable for album %d: %v", req.TidalAlbumID, err)
+	} else {
+		coverURL := cover.URL640
+		if coverURL == "" {
+			coverURL = cover.URL1280
+		}
+		if coverURL != "" {
+			coverJPEG, err = downloadCover(ctx, coverURL, outputDir)
+			if err != nil {
+				d.logger.Printf("cover download failed for album %d: %v", req.TidalAlbumID, err)
+			}
+		}
+	}
+
+	// Extract release year from date (YYYY-MM-DD → YYYY).
+	releaseDate := album.ReleaseDate
+	if len(releaseDate) >= 4 {
+		releaseDate = releaseDate[:4]
 	}
 
 	downloadID, err := d.store.CreateDownload(ctx, req.TidalAlbumID, album.Artist.Name, album.Title, req.Quality, len(album.Tracks))
@@ -97,6 +128,20 @@ func (d *Downloader) Download(ctx context.Context, req Request) error {
 		if err := d.downloadTrack(ctx, manifestResult, trackPath); err != nil {
 			_ = d.store.FailDownload(ctx, downloadID, err.Error())
 			return fmt.Errorf("downloader: downloading track %d (%s): %w", track.ID, track.Title, err)
+		}
+
+		// Tag the downloaded FLAC file (best-effort).
+		if err := tagFLAC(trackPath, trackMeta{
+			Artist:      album.Artist.Name,
+			Album:       album.Title,
+			Title:       track.Title,
+			TrackNumber: track.TrackNumber,
+			DiscNumber:  track.VolumeNumber,
+			TotalDiscs:  album.NumberOfVolumes,
+			Date:        releaseDate,
+			CoverJPEG:   coverJPEG,
+		}); err != nil {
+			d.logger.Printf("tagging failed for track %d (%s): %v", track.ID, track.Title, err)
 		}
 
 		progress := float64(i+1) / float64(len(album.Tracks)) * 100

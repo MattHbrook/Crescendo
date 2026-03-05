@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -104,9 +105,9 @@ func (m *mockDiscovery) Discover(_ context.Context, _, _ int) ([]discovery.Recom
 // ---------------------------------------------------------------------------
 
 // writeTemplates creates a minimal set of template files in a temp directory
-// and returns its path. The templates are just enough for the handlers to
-// execute without error.
-func writeTemplates(t *testing.T) string {
+// and returns an fs.FS rooted at that directory. The templates are just enough
+// for the handlers to execute without error.
+func writeTemplates(t *testing.T) fs.FS {
 	t.Helper()
 
 	dir := t.TempDir()
@@ -133,17 +134,17 @@ func writeTemplates(t *testing.T) string {
 		}
 	}
 
-	return dir
+	return os.DirFS(dir)
 }
 
 // newTestHandler creates a Handler wired up with the given mocks and a valid
-// template directory. It fails the test if construction fails.
+// template filesystem. It fails the test if construction fails.
 func newTestHandler(t *testing.T, store HandlerStore, hf HandlerHiFi, scanner HandlerScanner, dl HandlerDownloader, disc HandlerDiscovery) *Handler {
 	t.Helper()
 
-	dir := writeTemplates(t)
+	tmplFS := writeTemplates(t)
 
-	h, err := New(dir, store, hf, scanner, dl, disc, "LOSSLESS")
+	h, err := New(tmplFS, store, hf, scanner, dl, disc, "LOSSLESS")
 	if err != nil {
 		t.Fatalf("creating handler: %v", err)
 	}
@@ -164,16 +165,16 @@ func chiContextID(r *http.Request, value string) *http.Request {
 
 func TestNew(t *testing.T) {
 	t.Run("fails with bad template dir", func(t *testing.T) {
-		_, err := New("/no/such/dir", &mockStore{}, &mockHiFi{}, &mockScanner{}, &mockDownloader{}, &mockDiscovery{}, "LOSSLESS")
+		_, err := New(os.DirFS("/no/such/dir"), &mockStore{}, &mockHiFi{}, &mockScanner{}, &mockDownloader{}, &mockDiscovery{}, "LOSSLESS")
 		if err == nil {
 			t.Fatal("expected error, got nil")
 		}
 	})
 
 	t.Run("succeeds with valid template dir", func(t *testing.T) {
-		dir := writeTemplates(t)
+		tmplFS := writeTemplates(t)
 
-		h, err := New(dir, &mockStore{}, &mockHiFi{}, &mockScanner{}, &mockDownloader{}, &mockDiscovery{}, "LOSSLESS")
+		h, err := New(tmplFS, &mockStore{}, &mockHiFi{}, &mockScanner{}, &mockDownloader{}, &mockDiscovery{}, "LOSSLESS")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
